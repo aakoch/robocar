@@ -21,7 +21,7 @@ i = math.pi / 2 # offset with red on at full to start
 
 while(True):
 
-    i += .0015
+    i += .0015 # nice, slow speed -- set it to whatever you like
 
     red_on = max(0, round(math.sin(i) * CONST_RBG_MAX))
     green_on = max(0, round(math.sin(i - deg_120) * CONST_RBG_MAX))
