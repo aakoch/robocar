@@ -11,24 +11,28 @@ from pyb import Pin, Timer
 ###########
 
 WRITE_FILE = False
-COLOR_LINE_FOLLOWING = True # False to use grayscale thresholds, true to use color thresholds.
+REVERSE = False
+COLOR_LINE_FOLLOWING = False # False to use grayscale thresholds, true to use color thresholds.
+JUMP_START_THROTTLE_INCREASE = 10
+DEBUG_PRINT_UART = False # whether to write UART debug
+DEBUG_LINE_STATUS = True
 #COLOR_THRESHOLDS = [( 85, 100,  -40,  127,   20,  127)] # Yellow Line.
 COLOR_THRESHOLDS = [(16, 88, -25, 27, -53, -14)] # Blue tape line
 GRAYSCALE_THRESHOLDS = [(240, 255)] # White Line.
 BINARY_VIEW = False # Helps debugging but costs FPS if on.
 DO_NOTHING = False # Just capture frames...
 FRAME_SIZE = sensor.QQVGA # Frame size.
-FRAME_REGION = 0.9 # Percentage of the image from the bottom (0 - 1.0).
+FRAME_REGION = 0.8 # Percentage of the image from the bottom (0 - 1.0).
 FRAME_WIDE = 1.0 # Percentage of the frame width.
 BOTTOM_PX_TO_REMOVE = 4 # maybe I screwed something up with my camera, but the last few rows are just noise
 
 AREA_THRESHOLD = 0 # Raise to filter out false detections.
 PIXELS_THRESHOLD = 40 # Raise to filter out false detections.
-MAG_THRESHOLD = 4 # Raise to filter out false detections.
+MAG_THRESHOLD = 5 # Raise to filter out false detections.
 MIXING_RATE = 0.9 # Percentage of a new line detection to mix into current steering.
 
 # Tweak these values for your robocar.
-THROTTLE_CUT_OFF_ANGLE = 2.0 # Maximum angular distance from 90 before we cut speed [0.0-90.0).
+THROTTLE_CUT_OFF_ANGLE = 3.0 # Maximum angular distance from 90 before we cut speed [0.0-90.0).
 THROTTLE_CUT_OFF_RATE = 0.5 # How much to cut our speed boost (below) once the above is passed (0.0-1.0].
 THROTTLE_GAIN = 20.0 # e.g. how much to speed up on a straight away
 THROTTLE_OFFSET = 12.0 # e.g. default speed (0 to 100)
@@ -40,7 +44,7 @@ THROTTLE_D_GAIN = 0.0
 
 # Tweak these values for your robocar.
 STEERING_OFFSET = 90 # Change this if you need to fix an imbalance in your car (0 to 180).
-STEERING_P_GAIN = -23.0 # Make this smaller as you increase your speed and vice versa.
+STEERING_P_GAIN = -53.0 # Make this smaller as you increase your speed and vice versa.
 STEERING_I_GAIN = 0.0
 STEERING_I_MIN = -0.0
 STEERING_I_MAX = 0.0
@@ -51,8 +55,9 @@ THROTTLE_SERVO_MIN_US = 1540
 THROTTLE_SERVO_MAX_US = 2000
 
 # Tweak these values for your robocar.
-STEERING_SERVO_MIN_US = 700
-STEERING_SERVO_MAX_US = 2300
+STEERING_SERVO_MIN_US = 1270
+# back/right max
+STEERING_SERVO_MAX_US = 1800
 
 FRAME_REGION = max(min(FRAME_REGION, 1.0), 0.0)
 FRAME_WIDE = max(min(FRAME_WIDE, 1.0), 0.0)
@@ -120,12 +125,58 @@ def figure_out_my_throttle(steering): # steering -> [0:180]
 # Servo Control Code
 device = pyb.UART(3, 19200, timeout_char = 1000)
 
-# throttle [0:100] (101 values) -> [THROTTLE_SERVO_MIN_US, THROTTLE_SERVO_MAX_US]
+## throttle [0:100] (101 values) -> [THROTTLE_SERVO_MIN_US, THROTTLE_SERVO_MAX_US]
+# throttle [-100:100] (201 values) -> [THROTTLE_SERVO_MIN_US, THROTTLE_SERVO_MAX_US]
 # steering [0:180] (181 values) -> [STEERING_SERVO_MIN_US, STEERING_SERVO_MAX_US]
 def set_servos(throttle, steering):
-    throttle = THROTTLE_SERVO_MIN_US + ((throttle * (THROTTLE_SERVO_MAX_US - THROTTLE_SERVO_MIN_US + 1)) / 101)
+    if throttle < 0:
+        throttle = 1000 + ((throttle * (THROTTLE_SERVO_MIN_US - 1000 + 1)) / 101)
+    else:
+        throttle = THROTTLE_SERVO_MIN_US + ((throttle * (THROTTLE_SERVO_MAX_US - THROTTLE_SERVO_MIN_US + 1)) / 101)
+
     steering = STEERING_SERVO_MIN_US + ((steering * (STEERING_SERVO_MAX_US - STEERING_SERVO_MIN_US + 1)) / 181)
     device.write("{%05d,%05d}\r\n" % (throttle, steering))
+    if DEBUG_PRINT_UART:
+        if device.any():
+            print("wrote: {%05d,%05d}, read: %s" % (throttle, steering, device.read()))
+        else:
+            print("wrote: {%05d,%05d}, read: nothing" % (throttle, steering))
+
+def invert_steering(steering_in):
+    return ((steering_in - 90) * -1) + 90
+
+def repeat_stars(num):
+    count = round(num / 2)
+    char = ""
+    for i in range(count):
+        char = char + "*"
+    return char
+
+green_led = pyb.LED(2)
+def turn_green_led_on(timer):
+    green_led.on()
+
+def turn_green_led_off(timer):
+    green_led.off()
+
+green_led_timer = Timer(4, freq=200)      # create a timer object using timer 4 - trigger at 1Hz
+green_led_timer.callback(turn_green_led_on)          # set the callback to our tick function
+green_led_timer_channel = green_led_timer.channel(1, Timer.PWM, callback=turn_green_led_off, pulse_width_percent=50)
+
+
+#green_led_on = False
+#magnitude = 0
+
+#def tick(timer):            # we will receive the timer object when being called
+    #global green_led_on
+    ##if magnitude > 20:
+        ##green_led_on = True
+    ##else:
+        ##green_led_on = False
+    #pyb.LED(2).toggle()
+
+#tim = Timer(4, freq=1000)      # create a timer object using timer 4 - trigger at 1Hz
+#tim.callback(tick)          # set the callback to our tick function
 
 # Camera Control Code
 sensor.reset()
@@ -181,10 +232,11 @@ line_lost_count = 0
 delta_time = 0
 
 start_time = pyb.millis()
+jump_start_counter = 10
 
 while True:
     clock.tick()
-    img = sensor.snapshot()#.histeq()
+    img = sensor.snapshot()#.lens_corr(3, .7)#.logpolar()#.linpolar()#.illuminvar().chrominvar().histeq()
 
     if BINARY_VIEW: img = img.binary(COLOR_THRESHOLDS if COLOR_LINE_FOLLOWING else GRAYSCALE_THRESHOLDS)
     if BINARY_VIEW: img.erode(1, threshold = 3).dilate(1, threshold = 1)
@@ -197,11 +249,11 @@ while True:
         area_threshold = AREA_THRESHOLD, pixels_threshold = PIXELS_THRESHOLD, \
         robust = True)
 
-
     print_string = ""
 
     if line and (line.magnitude() >= MAG_THRESHOLD):
         line_lost_count = 0
+        jump_start_counter = jump_start_counter - 1
 
         if usb_is_connected:
             img.draw_line(line.line(), color = lineColor)
@@ -260,35 +312,55 @@ while True:
         # Throttle goes from 0% to 100%.
         throttle_output = max(min(round(throttle_pid_output), 100), 0)
 
+        if jump_start_counter > 0:
+            throttle_output = throttle_output + JUMP_START_THROTTLE_INCREASE
+
         print_string = "Line Ok - throttle %d, steering %d - line t: %d, r: %d, x1: %d, y1: %d, x2: %d, y2: %d, 1/2way: %d, mag: %d" % \
             (throttle_output , steering_output, line.theta(), line.rho(), line.x1(), line.y1(), line.x2(), line.y2(), sensor.width() / 2, line.magnitude())
         #tup = (min(line.x1(), line.x2()), line.y1(), abs(line.x1() - line.x2()), abs(line.y1() - line.y2()))
         #img.draw_rectangle(tup)
+
         pyb.LED(1).off()
-        pyb.LED(2).on()
+        #pyb.LED(2).on()
+        green_led_timer_channel.pulse_width_percent(min(line.magnitude() * 4, 100))
+        pyb.LED(3).off()
     else:
         line_lost_count = line_lost_count + 1
-        throttle_output = throttle_output * .92 if (throttle_output > .1) else 0
 
-        if line_lost_count > 10:
-            throttle_output = -55 + (line_lost_count / 2)
-            steering_output = 90
-            if line_lost_count > 100:
-                throttle_output = 0
-                pyb.LED(3).off()
+        if REVERSE:
+            throttle_output = throttle_output - 1
+
+            if line_lost_count > 10:
+                if line_lost_count == 11:
+                    #throttle_output = -1
+                    steering_output = invert_steering(steering_output)
+
+                #if line_lost_count > 11:
+                    #throttle_output = throttle_output - 1
+
+                if line_lost_count > 100:
+                    #throttle_output = 0
+                    pyb.LED(3).off()
+                else:
+                    pyb.LED(3).toggle()
             else:
-                pyb.LED(3).toggle()
-
+                if line_lost_count == 3:
+                    steering_output = steering_output - 10 if steering_output < 90 else steering_output + 10
+                steering_output = max(min(steering_output, 180), 0)
+        else:
+            throttle_output = throttle_output * .92 if (throttle_output > .1) else 0
         print_string = "Line Lost - throttle %d, steering %d" % (throttle_output , steering_output)
 
         pyb.LED(1).on()
         pyb.LED(2).off()
+        green_led_timer_channel.pulse_width_percent(0)
 
     #print(throttle_output)
     if WRITE_FILE:
         f.write(str(throttle_output) + "," + str(steering_output) + "\r")
     set_servos(throttle_output, steering_output)
-    print("FPS %f - %s" % (clock.fps(), print_string))
+    if DEBUG_LINE_STATUS:
+        print("FPS %f - %s" % (clock.fps(), print_string))
 
     if (WRITE_FILE and pyb.millis() - start_time > 2000):
         f.flush()
