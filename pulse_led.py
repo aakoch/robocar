@@ -33,21 +33,21 @@ def blue_led_off(timer):
     blue_led.off()
 
 def set_pw_colors(i):
-    red_on = max(0, math.sin(i) * RBG_MAX)
+    red_on =   max(0, math.sin(i) * RBG_MAX)
     green_on = max(0, math.sin(i - DEG_120) * RBG_MAX)
-    blue_on = max(0, math.sin(i - DEG_240) * RBG_MAX)
+    blue_on =  max(0, math.sin(i - DEG_240) * RBG_MAX)
 
     print("%f %f %f" % (red_on, blue_on, green_on))
 
-    red_channel.pulse_width_percent(red_on)
-    blue_channel.pulse_width_percent(blue_on)
+    red_channel.  pulse_width_percent(red_on)
     green_channel.pulse_width_percent(green_on)
+    blue_channel. pulse_width_percent(blue_on)
 
-tim = Timer(4, freq=40)
-tim.callback(leds_on)
-red_channel = tim.channel(1, Timer.PWM, callback=red_led_off, pulse_width_percent=0)
-blue_channel = tim.channel(2, Timer.PWM, callback=blue_led_off, pulse_width_percent=0)
-green_channel = tim.channel(3, Timer.PWM, callback=green_led_off, pulse_width_percent=0)
+tim = Timer(4, freq=40, callback=leds_on)
+
+red_channel =   tim.channel(1, Timer.PWM, callback=red_led_off,   pulse_width_percent=0)
+green_channel = tim.channel(2, Timer.PWM, callback=green_led_off, pulse_width_percent=0)
+blue_channel =  tim.channel(3, Timer.PWM, callback=blue_led_off,  pulse_width_percent=0)
 
 while (True):
     set_pw_colors(pyb.millis() / 1000)
