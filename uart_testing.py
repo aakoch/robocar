@@ -17,11 +17,19 @@ pyb.LED(1).on()
 time.sleep(1000)
 pyb.LED(1).off()
 
+throttle = 1500
+steering = 1500
+
 while(True):
     #pyb.LED(2).toggle()
-    uart.write("Hello World!\n")
-    time.sleep(200)
+    #uart.write("{000020,121113}\n")
+    uart.write("{%05d,%05d}\r\n" % (throttle, steering))
+    print("sent={%05d,%05d}\r" % (throttle, steering))
+    #time.sleep(200)
     if (uart.any()):
         pyb.LED(3).toggle()
         uartInput = uart.read()
-        print(uartInput.decode("utf-8") )
+        print("received=" + uartInput.decode("utf-8") )
+
+    #throttle = throttle + 1
+    #steering = steering - 1

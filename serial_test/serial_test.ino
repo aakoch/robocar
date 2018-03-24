@@ -5,9 +5,12 @@
 
 const byte numChars = 32;
 char receivedChars[numChars];   // an array to store the received data
-const char endMarker = '\n';
+const int endMarker = '\n';
+
+char serial_buffer[16] = {};
 
 boolean newData = false;
+unsigned long serial_throttle_servo_pulse_length_tmp, serial_steering_servo_pulse_length_tmp;
 
 void setup() {
   Serial.begin(19200);
@@ -26,23 +29,35 @@ void loop() {
 
 void recvWithEndMarker() {
   static byte ndx = 0;
-  char rc;
+  int rc;
 
   while (Serial.available() > 0 && newData == false) {
     digitalWrite(LED_BUILTIN, HIGH);
-    rc = Serial.read();
 
-    if (rc != endMarker) {
-      receivedChars[ndx] = rc;
-      ndx++;
-      if (ndx >= numChars) {
-        ndx = numChars - 1;
-      }
+    
+    int c = Serial.read();
+    memmove(serial_buffer, serial_buffer + 1, sizeof(serial_buffer) - 2);
+    serial_buffer[sizeof(serial_buffer) - 2] = c;
+
+
+    if (c == endMarker) {
+
+
+      //      if (sscanf(serial_buffer, "{%lu,%lu}", &serial_throttle_servo_pulse_length_tmp, &serial_steering_servo_pulse_length_tmp) == 2) {
+      //
+      //      }
+
+
+      //      receivedChars[ndx] = '\0'; // terminate the string
+      //      ndx = 0;
+      newData = true;
     }
     else {
-      receivedChars[ndx] = '\0'; // terminate the string
-      ndx = 0;
-      newData = true;
+      //      receivedChars[ndx] = rc;
+      //      ndx++;
+      //      if (ndx >= numChars) {
+      //        ndx = numChars - 1;
+      //      }
     }
   }
   digitalWrite(LED_BUILTIN, LOW);
@@ -52,7 +67,11 @@ void showNewData() {
   if (newData == true) {
     digitalWrite(LED_BUILTIN, HIGH);
     Serial.print("This just in ... ");
-    Serial.println(receivedChars);
+    //    if (serial_throttle_servo_pulse_length_tmp) {
+    //      Serial.println(serial_throttle_servo_pulse_length_tmp);
+    //    }
+    //    else
+    Serial.println(serial_buffer);
     newData = false;
     digitalWrite(LED_BUILTIN, LOW);
     //    delay(2000);

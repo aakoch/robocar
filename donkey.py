@@ -12,12 +12,12 @@ from pyb import Pin, Timer
 
 WRITE_FILE = False
 REVERSE = False
-COLOR_LINE_FOLLOWING = False # False to use grayscale thresholds, true to use color thresholds.
-JUMP_START_THROTTLE_INCREASE = 10
-DEBUG_PRINT_UART = False # whether to write UART debug
+COLOR_LINE_FOLLOWING = True # False to use grayscale thresholds, true to use color thresholds.
+JUMP_START_THROTTLE_INCREASE = 1
+DEBUG_PRINT_UART = True # whether to write UART debug
 DEBUG_LINE_STATUS = True
 #COLOR_THRESHOLDS = [( 85, 100,  -40,  127,   20,  127)] # Yellow Line.
-COLOR_THRESHOLDS = [(16, 88, -25, 27, -53, -14)] # Blue tape line
+COLOR_THRESHOLDS = [(1, 88, -25, 27, -58, -2)] # Blue tape line
 GRAYSCALE_THRESHOLDS = [(240, 255)] # White Line.
 BINARY_VIEW = False # Helps debugging but costs FPS if on.
 DO_NOTHING = False # Just capture frames...
@@ -26,36 +26,37 @@ FRAME_REGION = 0.8 # Percentage of the image from the bottom (0 - 1.0).
 FRAME_WIDE = 1.0 # Percentage of the frame width.
 BOTTOM_PX_TO_REMOVE = 4 # maybe I screwed something up with my camera, but the last few rows are just noise
 
-AREA_THRESHOLD = 0 # Raise to filter out false detections.
+AREA_THRESHOLD = 10 # Raise to filter out false detections.
 PIXELS_THRESHOLD = 40 # Raise to filter out false detections.
 MAG_THRESHOLD = 5 # Raise to filter out false detections.
-MIXING_RATE = 0.9 # Percentage of a new line detection to mix into current steering.
+MIXING_RATE = 0.8 # Percentage of a new line detection to mix into current steering.
 
 # Tweak these values for your robocar.
-THROTTLE_CUT_OFF_ANGLE = 3.0 # Maximum angular distance from 90 before we cut speed [0.0-90.0).
-THROTTLE_CUT_OFF_RATE = 0.5 # How much to cut our speed boost (below) once the above is passed (0.0-1.0].
-THROTTLE_GAIN = 20.0 # e.g. how much to speed up on a straight away
-THROTTLE_OFFSET = 12.0 # e.g. default speed (0 to 100)
+THROTTLE_CUT_OFF_ANGLE = 2.0 # Maximum angular distance from 90 before we cut speed [0.0-90.0).
+THROTTLE_CUT_OFF_RATE = 10.0 # How much to cut our speed boost (below) once the above is passed (0.0-1.0].
+THROTTLE_GAIN = 0.0 # e.g. how much to speed up on a straight away
+THROTTLE_OFFSET = 13 # e.g. default speed (0 to 100)
 THROTTLE_P_GAIN = 1.0
 THROTTLE_I_GAIN = 0.0
 THROTTLE_I_MIN = -0.0
 THROTTLE_I_MAX = 0.0
 THROTTLE_D_GAIN = 0.0
+MIN_THROTTLE = 10
 
 # Tweak these values for your robocar.
 STEERING_OFFSET = 90 # Change this if you need to fix an imbalance in your car (0 to 180).
-STEERING_P_GAIN = -53.0 # Make this smaller as you increase your speed and vice versa.
+STEERING_P_GAIN = -100.0 # Make this smaller as you increase your speed and vice versa.
 STEERING_I_GAIN = 0.0
 STEERING_I_MIN = -0.0
 STEERING_I_MAX = 0.0
 STEERING_D_GAIN = -9 # Make this larger as you increase your speed and vice versa.
 
 # Tweak these values for your robocar.
-THROTTLE_SERVO_MIN_US = 1540
-THROTTLE_SERVO_MAX_US = 2000
+THROTTLE_SERVO_MIN_US = 1500
+THROTTLE_SERVO_MAX_US = 1700
 
 # Tweak these values for your robocar.
-STEERING_SERVO_MIN_US = 1270
+STEERING_SERVO_MIN_US = 1300
 # back/right max
 STEERING_SERVO_MAX_US = 1800
 
@@ -111,7 +112,7 @@ t_power = math.log(THROTTLE_CUT_OFF_RATE) / math.log(math.cos(math.radians(THROT
 # log(.5) = -0.301029995663981
 # 0.301029995663981 / 0.000264641078415 = 1137.502905697495267 (t_power)???
 
-def figure_out_my_throttle(steering): # steering -> [0:180]
+def figure_out_my_throttle(steering, factor): # steering -> [0:180]
 
     # pow(sin()) of the steering angle is only non-zero when driving straight... e.g. steering ~= 90
     t_result = math.pow(math.sin(math.radians(max(min(steering, 179.99), 0.0))), t_power)
@@ -120,10 +121,11 @@ def figure_out_my_throttle(steering): # steering -> [0:180]
     # sin(90 deg) = 1
     # sin(180 deg) = 0
 
-    return (t_result * THROTTLE_GAIN) + THROTTLE_OFFSET
+    # the bigger the factor, the more we slow
+    return max(MIN_THROTTLE, (t_result * THROTTLE_GAIN) + THROTTLE_OFFSET - (factor / 10))
 
 # Servo Control Code
-device = pyb.UART(3, 19200, timeout_char = 1000)
+device = pyb.UART(3, 19200, timeout_char = 100)
 
 ## throttle [0:100] (101 values) -> [THROTTLE_SERVO_MIN_US, THROTTLE_SERVO_MAX_US]
 # throttle [-100:100] (201 values) -> [THROTTLE_SERVO_MIN_US, THROTTLE_SERVO_MAX_US]
@@ -138,7 +140,16 @@ def set_servos(throttle, steering):
     device.write("{%05d,%05d}\r\n" % (throttle, steering))
     if DEBUG_PRINT_UART:
         if device.any():
-            print("wrote: {%05d,%05d}, read: %s" % (throttle, steering, device.read()))
+            read_count = 15
+            chars = ""
+            while device.any() and chars[:-1] != "\n" and read_count > 0:
+                read_char = str(device.read(1).decode("utf-8"))
+                chars = chars + read_char
+                read_count = read_count - 1
+            if chars:
+                print("wrote: {%05d,%05d}, read: %s" % (throttle, steering, chars[:-2] ))
+            else:
+                print("wrote: {%05d,%05d}, read: nothing" % (throttle, steering))
         else:
             print("wrote: {%05d,%05d}, read: nothing" % (throttle, steering))
 
@@ -236,7 +247,7 @@ jump_start_counter = 10
 
 while True:
     clock.tick()
-    img = sensor.snapshot()#.lens_corr(3, .7)#.logpolar()#.linpolar()#.illuminvar().chrominvar().histeq()
+    img = sensor.snapshot().histeq()#.lens_corr(3, .7)#.logpolar()#.linpolar()#.illuminvar().chrominvar().histeq()
 
     if BINARY_VIEW: img = img.binary(COLOR_THRESHOLDS if COLOR_LINE_FOLLOWING else GRAYSCALE_THRESHOLDS)
     if BINARY_VIEW: img.erode(1, threshold = 3).dilate(1, threshold = 1)
@@ -291,7 +302,8 @@ while True:
         steering_output = STEERING_OFFSET + max(min(round(steering_pid_output), 180 - STEERING_OFFSET), STEERING_OFFSET - 180)
 
         # Figure out throttle and do throttle PID
-        throttle_new_result = figure_out_my_throttle(steering_output)
+        factor = abs(line.x2() - 90)
+        throttle_new_result = figure_out_my_throttle(steering_output, factor)
         throttle_delta_result = (throttle_new_result - throttle_old_result) if (throttle_old_result != None) else 0
         throttle_old_result = throttle_new_result
 
@@ -315,7 +327,7 @@ while True:
         if jump_start_counter > 0:
             throttle_output = throttle_output + JUMP_START_THROTTLE_INCREASE
 
-        print_string = "Line Ok - throttle %d, steering %d - line t: %d, r: %d, x1: %d, y1: %d, x2: %d, y2: %d, 1/2way: %d, mag: %d" % \
+        print_string = "Line Ok - throttle %d, steering %d - line t: %d°, r: %d, x1: %d, y1: %d, x2: %d, y2: %d, 1/2: %d, mag: %d" % \
             (throttle_output , steering_output, line.theta(), line.rho(), line.x1(), line.y1(), line.x2(), line.y2(), sensor.width() / 2, line.magnitude())
         #tup = (min(line.x1(), line.x2()), line.y1(), abs(line.x1() - line.x2()), abs(line.y1() - line.y2()))
         #img.draw_rectangle(tup)
@@ -330,7 +342,7 @@ while True:
         if REVERSE:
             throttle_output = throttle_output - 1
 
-            if line_lost_count > 10:
+            if line_lost_count > 30:
                 if line_lost_count == 11:
                     #throttle_output = -1
                     steering_output = invert_steering(steering_output)
