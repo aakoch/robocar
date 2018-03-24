@@ -5,12 +5,13 @@
 
 const byte numChars = 32;
 char receivedChars[numChars];   // an array to store the received data
+const char endMarker = '\n';
 
 boolean newData = false;
 
 void setup() {
   Serial.begin(19200);
-  Serial.println("<Arduino is ready>");
+  Serial.println("<Arduino is ready - expecting \\n as delimiter>");
 }
 
 void loop() {
@@ -25,7 +26,6 @@ void loop() {
 
 void recvWithEndMarker() {
   static byte ndx = 0;
-  char endMarker = '\n';
   char rc;
 
   while (Serial.available() > 0 && newData == false) {
