@@ -19,7 +19,7 @@ pyb.LED(1).off()
 
 while(True):
     #pyb.LED(2).toggle()
-    uart.write("Hello World!\r")
+    uart.write("Hello World!\n")
     time.sleep(200)
     if (uart.any()):
         pyb.LED(3).toggle()

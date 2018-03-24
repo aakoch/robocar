@@ -10,53 +10,53 @@ boolean newData = false;
 
 void setup() {
   Serial.begin(19200);
-    Serial.println("<Arduino is ready>");
+  Serial.println("<Arduino is ready>");
 }
 
 void loop() {
-    recvWithEndMarker();
-    showNewData();
+  recvWithEndMarker();
+  showNewData();
 
-//    digitalWrite(LED_BUILTIN, HIGH);
-//    delay(150);
-//    digitalWrite(LED_BUILTIN, LOW);
-//    delay(200);
+  //    digitalWrite(LED_BUILTIN, HIGH);
+  //    delay(150);
+  //    digitalWrite(LED_BUILTIN, LOW);
+  //    delay(200);
 }
 
 void recvWithEndMarker() {
-    static byte ndx = 0;
-    char endMarker = '\n';
-    char rc;
-    
-    while (Serial.available() > 0 && newData == false) {
-      digitalWrite(LED_BUILTIN, HIGH);
-        rc = Serial.read();
+  static byte ndx = 0;
+  char endMarker = '\n';
+  char rc;
 
-        if (rc != endMarker) {
-            receivedChars[ndx] = rc;
-            ndx++;
-            if (ndx >= numChars) {
-                ndx = numChars - 1;
-            }
-        }
-        else {
-            receivedChars[ndx] = '\0'; // terminate the string
-            ndx = 0;
-            newData = true;
-        }
+  while (Serial.available() > 0 && newData == false) {
+    digitalWrite(LED_BUILTIN, HIGH);
+    rc = Serial.read();
+
+    if (rc != endMarker) {
+      receivedChars[ndx] = rc;
+      ndx++;
+      if (ndx >= numChars) {
+        ndx = numChars - 1;
+      }
     }
-    digitalWrite(LED_BUILTIN, LOW);
+    else {
+      receivedChars[ndx] = '\0'; // terminate the string
+      ndx = 0;
+      newData = true;
+    }
+  }
+  digitalWrite(LED_BUILTIN, LOW);
 }
 
 void showNewData() {
-//    if (newData == true) {
+  if (newData == true) {
     digitalWrite(LED_BUILTIN, HIGH);
-        Serial.print("This just in ... ");
-        Serial.println(receivedChars);
-//        newData = false;
+    Serial.print("This just in ... ");
+    Serial.println(receivedChars);
+    newData = false;
     digitalWrite(LED_BUILTIN, LOW);
-    delay(2000);
-//    }
+    //    delay(2000);
+  }
 }
 
 //
