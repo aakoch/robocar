@@ -17,7 +17,7 @@ JUMP_START_THROTTLE_INCREASE = 1
 DEBUG_PRINT_UART = True # whether to write UART debug
 DEBUG_LINE_STATUS = True
 #COLOR_THRESHOLDS = [( 85, 100,  -40,  127,   20,  127)] # Yellow Line.
-COLOR_THRESHOLDS = [(1, 88, -25, 27, -58, -2)] # Blue tape line
+COLOR_THRESHOLDS = [(1, 80, -25, 28, -58, -10)] # Blue tape line
 GRAYSCALE_THRESHOLDS = [(240, 255)] # White Line.
 BINARY_VIEW = False # Helps debugging but costs FPS if on.
 DO_NOTHING = False # Just capture frames...
@@ -26,15 +26,15 @@ FRAME_REGION = 0.8 # Percentage of the image from the bottom (0 - 1.0).
 FRAME_WIDE = 1.0 # Percentage of the frame width.
 BOTTOM_PX_TO_REMOVE = 4 # maybe I screwed something up with my camera, but the last few rows are just noise
 
-AREA_THRESHOLD = 10 # Raise to filter out false detections.
-PIXELS_THRESHOLD = 40 # Raise to filter out false detections.
+AREA_THRESHOLD = 20 # Raise to filter out false detections.
+PIXELS_THRESHOLD = 20 # Raise to filter out false detections.
 MAG_THRESHOLD = 5 # Raise to filter out false detections.
-MIXING_RATE = 0.8 # Percentage of a new line detection to mix into current steering.
+MIXING_RATE = 0.6 # Percentage of a new line detection to mix into current steering.
 
 # Tweak these values for your robocar.
 THROTTLE_CUT_OFF_ANGLE = 2.0 # Maximum angular distance from 90 before we cut speed [0.0-90.0).
 THROTTLE_CUT_OFF_RATE = 10.0 # How much to cut our speed boost (below) once the above is passed (0.0-1.0].
-THROTTLE_GAIN = 0.0 # e.g. how much to speed up on a straight away
+THROTTLE_GAIN = 10.0 # e.g. how much to speed up on a straight away
 THROTTLE_OFFSET = 13 # e.g. default speed (0 to 100)
 THROTTLE_P_GAIN = 1.0
 THROTTLE_I_GAIN = 0.0
@@ -45,20 +45,22 @@ MIN_THROTTLE = 10
 
 # Tweak these values for your robocar.
 STEERING_OFFSET = 90 # Change this if you need to fix an imbalance in your car (0 to 180).
-STEERING_P_GAIN = -100.0 # Make this smaller as you increase your speed and vice versa.
+STEERING_P_GAIN = -40.0 # Make this smaller as you increase your speed and vice versa.
 STEERING_I_GAIN = 0.0
 STEERING_I_MIN = -0.0
 STEERING_I_MAX = 0.0
 STEERING_D_GAIN = -9 # Make this larger as you increase your speed and vice versa.
 
 # Tweak these values for your robocar.
-THROTTLE_SERVO_MIN_US = 1500
+THROTTLE_SERVO_MIN_US = 1550
 THROTTLE_SERVO_MAX_US = 1700
 
 # Tweak these values for your robocar.
-STEERING_SERVO_MIN_US = 1300
-# back/right max
-STEERING_SERVO_MAX_US = 1800
+STEERING_SERVO_MIN_US = 700
+STEERING_SERVO_MAX_US = 2300
+#STEERING_SERVO_MIN_US = 1300
+## back/right max
+#STEERING_SERVO_MAX_US = 1800
 
 FRAME_REGION = max(min(FRAME_REGION, 1.0), 0.0)
 FRAME_WIDE = max(min(FRAME_WIDE, 1.0), 0.0)
@@ -122,10 +124,19 @@ def figure_out_my_throttle(steering, factor): # steering -> [0:180]
     # sin(180 deg) = 0
 
     # the bigger the factor, the more we slow
-    return max(MIN_THROTTLE, (t_result * THROTTLE_GAIN) + THROTTLE_OFFSET - (factor / 10))
+    return max(MIN_THROTTLE, (t_result * THROTTLE_GAIN) + THROTTLE_OFFSET - (factor / 10)) + 15
 
 # Servo Control Code
 device = pyb.UART(3, 19200, timeout_char = 100)
+
+def read_from_uart():
+    read_count = 15
+    chars = ""
+    #while device.any() and chars[:-1] != "\n" and read_count > 0:
+        #read_char = str(device.read(1).decode("utf-8"))
+        #chars = chars + read_char
+        #read_count = read_count - 1
+    return chars
 
 ## throttle [0:100] (101 values) -> [THROTTLE_SERVO_MIN_US, THROTTLE_SERVO_MAX_US]
 # throttle [-100:100] (201 values) -> [THROTTLE_SERVO_MIN_US, THROTTLE_SERVO_MAX_US]
@@ -139,18 +150,14 @@ def set_servos(throttle, steering):
     steering = STEERING_SERVO_MIN_US + ((steering * (STEERING_SERVO_MAX_US - STEERING_SERVO_MIN_US + 1)) / 181)
     device.write("{%05d,%05d}\r\n" % (throttle, steering))
     if DEBUG_PRINT_UART:
-        if device.any():
-            read_count = 15
-            chars = ""
-            while device.any() and chars[:-1] != "\n" and read_count > 0:
-                read_char = str(device.read(1).decode("utf-8"))
-                chars = chars + read_char
-                read_count = read_count - 1
-            if chars:
-                print("wrote: {%05d,%05d}, read: %s" % (throttle, steering, chars[:-2] ))
-            else:
-                print("wrote: {%05d,%05d}, read: nothing" % (throttle, steering))
-        else:
+        #if device.any():
+            #chars = read_from_uart()
+
+            #if chars:
+                #print("wrote: {%05d,%05d}, read: %s" % (throttle, steering, chars[:-2] ))
+            #else:
+                #print("wrote: {%05d,%05d}, read: nothing" % (throttle, steering))
+        #else:
             print("wrote: {%05d,%05d}, read: nothing" % (throttle, steering))
 
 def invert_steering(steering_in):
@@ -190,16 +197,20 @@ green_led_timer_channel = green_led_timer.channel(1, Timer.PWM, callback=turn_gr
 #tim.callback(tick)          # set the callback to our tick function
 
 # Camera Control Code
-sensor.reset()
-sensor.set_pixformat(sensor.RGB565 if COLOR_LINE_FOLLOWING else sensor.GRAYSCALE)
-sensor.set_framesize(FRAME_SIZE)
-sensor.set_vflip(True)
-sensor.set_hmirror(True)
-sensor.set_windowing((int((sensor.width() / 2) - ((sensor.width() / 2) * FRAME_WIDE)), int(sensor.height() * (1.0 - FRAME_REGION)), \
-                     int((sensor.width() / 2) + ((sensor.width() / 2) * FRAME_WIDE)), int(sensor.height() * FRAME_REGION) - BOTTOM_PX_TO_REMOVE))
-sensor.skip_frames(time = 200)
-if COLOR_LINE_FOLLOWING: sensor.set_auto_gain(False)
-if COLOR_LINE_FOLLOWING: sensor.set_auto_whitebal(False)
+def reset_sensor():
+    sensor.reset()
+    sensor.set_pixformat(sensor.RGB565 if COLOR_LINE_FOLLOWING else sensor.GRAYSCALE)
+    sensor.set_framesize(FRAME_SIZE)
+    sensor.set_vflip(True)
+    sensor.set_hmirror(True)
+    sensor.set_windowing((int((sensor.width() / 2) - ((sensor.width() / 2) * FRAME_WIDE)), int(sensor.height() * (1.0 - FRAME_REGION)), \
+                         int((sensor.width() / 2) + ((sensor.width() / 2) * FRAME_WIDE)), int(sensor.height() * FRAME_REGION) - BOTTOM_PX_TO_REMOVE))
+    sensor.skip_frames(time = 200)
+    if COLOR_LINE_FOLLOWING: sensor.set_auto_gain(False)
+    if COLOR_LINE_FOLLOWING: sensor.set_auto_whitebal(False)
+
+reset_sensor()
+
 clock = time.clock()
 
 old_time = pyb.millis()
@@ -244,10 +255,26 @@ delta_time = 0
 
 start_time = pyb.millis()
 jump_start_counter = 10
+use_hist = True
 
 while True:
     clock.tick()
-    img = sensor.snapshot().histeq()#.lens_corr(3, .7)#.logpolar()#.linpolar()#.illuminvar().chrominvar().histeq()
+
+    if line_lost_count > 5 and use_hist:
+        use_hist = False
+
+    if line_lost_count > 50 and not use_hist:
+        reset_sensor()
+        line_lost_count = 0
+        use_hist = True
+
+
+    if use_hist:
+        img = sensor.snapshot().histeq()
+    #elif use_binary:
+        #img = sensor.snapshot().binary(0)
+    else:
+        img = sensor.snapshot()#.histeq()#.lens_corr(3, .7)#.logpolar()#.linpolar()#.illuminvar().chrominvar().histeq()
 
     if BINARY_VIEW: img = img.binary(COLOR_THRESHOLDS if COLOR_LINE_FOLLOWING else GRAYSCALE_THRESHOLDS)
     if BINARY_VIEW: img.erode(1, threshold = 3).dilate(1, threshold = 1)
@@ -263,7 +290,7 @@ while True:
     print_string = ""
 
     if line and (line.magnitude() >= MAG_THRESHOLD):
-        line_lost_count = 0
+        line_lost_count = max(0, line_lost_count - 2)
         jump_start_counter = jump_start_counter - 1
 
         if usb_is_connected:
