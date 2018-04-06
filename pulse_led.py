@@ -1,3 +1,4 @@
+#pulse_led.py
 ###############################################################
 # Code for OpenMV M7 camera
 # Pulsates LEDs between red, green, blue
@@ -43,7 +44,7 @@ def set_pw_colors(i):
     green_channel.pulse_width_percent(green_on)
     blue_channel. pulse_width_percent(blue_on)
 
-tim = Timer(4, freq=40, callback=leds_on)
+tim = Timer(4, freq=50, callback=leds_on)
 
 red_channel =   tim.channel(1, Timer.PWM, callback=red_led_off,   pulse_width_percent=0)
 green_channel = tim.channel(2, Timer.PWM, callback=green_led_off, pulse_width_percent=0)

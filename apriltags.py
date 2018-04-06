@@ -19,9 +19,9 @@ x_rot = 0
 y_rot = 0
 z_rot = 0
 while(True):
-    img = sensor.snapshot().rotation_corr(x_rotation = x_rot, \
-                                          y_rotation = y_rot, \
-                                          z_rotation = z_rot, \
+    img = sensor.snapshot().rotation_corr(x_rotation = 180, \
+                                          y_rotation = 360, \
+                                          z_rotation = 0, \
                                           x_translation = 0, \
                                           y_translation = 0, \
                                           zoom = 1)
@@ -32,6 +32,6 @@ while(True):
             degrees(tag.x_rotation()), degrees(tag.y_rotation()), degrees(tag.z_rotation()))
 
         x_rot += 180 - degrees(tag.x_rotation())
-        y_rot += -degrees(tag.y_rotation())
-        z_rot += -degrees(tag.z_rotation())
+        y_rot -= degrees(tag.y_rotation())
+        z_rot += degrees(tag.z_rotation())
         print("Tx: %f, Ty %f, Tz %f, Rx %f, Ry %f, Rz %f" % print_args)
