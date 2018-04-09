@@ -8,11 +8,12 @@
 # Copyright (c) 2018 Adam A. Koch
 # This work is licensed under the MIT license.
 ###############################################################
+import pyb
 from pyb import ADC
 
 adc = ADC("P6") # Must always be "P6".
 
 while(True):
     # The ADC has 12-bits of resolution for 4096 values.
-    print("ADC = %d" % round(adc.read() / 200))
-    time.sleep(100)
+    print("ADC = %d" % adc.read())
+    pyb.delay(100)
