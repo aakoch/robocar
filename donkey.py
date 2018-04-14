@@ -16,14 +16,14 @@ usb = pyb.USB_VCP() # This is a serial port object that allows you to
 usb_is_connected = usb.isconnected()
 usb = None
 
-#if (machine.reset_cause() == machine.PWRON_RESET):
-    #print("reset was caused by PWRON_RESET")
-#elif (machine.reset_cause() == machine.HARD_RESET):
-    #print("reset was caused by HARD_RESET")
-#elif (machine.reset_cause() == machine.DEEPSLEEP_RESET):
-    #print("reset was caused by DEEPSLEEP_RESET")
-#elif (machine.reset_cause() == machine.SOFT_RESET):
-    #print("reset was caused by SOFT_RESET")
+if (machine.reset_cause() == machine.PWRON_RESET):
+    print("reset was caused by PWRON_RESET")
+elif (machine.reset_cause() == machine.HARD_RESET):
+    print("reset was caused by HARD_RESET")
+elif (machine.reset_cause() == machine.DEEPSLEEP_RESET):
+    print("reset was caused by DEEPSLEEP_RESET")
+elif (machine.reset_cause() == machine.SOFT_RESET):
+    print("reset was caused by SOFT_RESET")
 
 
 # run the pulse_led.py script if the board was reset because of the watchdog
@@ -225,8 +225,8 @@ green_led_timer = Timer(4, freq=200)      # create a timer object using timer 4 
 green_led_timer.callback(turn_green_led_on)          # set the callback to our tick function
 green_led_timer_channel = green_led_timer.channel(1, Timer.PWM, callback=turn_green_led_off, pulse_width_percent=50)
 
-#green_led_on = False
-#magnitude = 0
+green_led_on = False
+magnitude = 0
 
 #def tick(timer):            # we will receive the timer object when being called
     #global green_led_on
@@ -294,166 +294,199 @@ line_lost_count = 0
 delta_time = 0
 
 start_time = pyb.millis()
+start_time2 = pyb.millis()
 jump_start_counter = 10
 use_hist = True
 
 adc = ADC("P6") # Must always be "P6".
 
-while True:
-    clock.tick()
+bad_values = set()
+min_pulse_sensor = 9999
+max_pulse_sensor = 0
+try:
+    while True:
+        clock.tick()
 
-    if not usb_is_connected:
-        wdt.feed()
-    #print("ADC = %d" % adc.read())
+        #print('1 Garbage collect free: {} allocated: {}'.format(gc.mem_free(), gc.mem_alloc()))
 
-    if line_lost_count > 5 and use_hist:
-        use_hist = False
+        if not usb_is_connected:
+            wdt.feed()
 
-    if line_lost_count > 50 and not use_hist:
-        reset_sensor()
-        line_lost_count = 0
-        use_hist = True
-
-    if use_hist:
-        img = sensor.snapshot().histeq()
-    #elif use_binary:
-        #img = sensor.snapshot().binary(0)
-    else:
-        img = sensor.snapshot()#.histeq()#.lens_corr(3, .7)#.logpolar()#.linpolar()#.illuminvar().chrominvar().histeq()
-
-    if BINARY_VIEW: img = img.binary(COLOR_THRESHOLDS if COLOR_LINE_FOLLOWING else GRAYSCALE_THRESHOLDS)
-    if BINARY_VIEW: img.erode(1, threshold = 3).dilate(1, threshold = 1)
-    if DO_NOTHING: continue
-
-    # We call get regression below to get a robust linear regression of the field of view.
-    # This returns a line object which we can use to steer the robocar.
-
-    line = img.get_regression(threshold5, \
-        area_threshold = AREA_THRESHOLD, pixels_threshold = PIXELS_THRESHOLD, \
-        robust = True)
-
-    print_string = ""
-
-    if line and (line.magnitude() >= MAG_THRESHOLD):
-        line_lost_count = max(0, line_lost_count - 2)
-        jump_start_counter = jump_start_counter - 1
-
-        if usb_is_connected:
-            img.draw_line(line.line(), color = lineColor)
-
-        new_time = pyb.millis()
-        delta_time = new_time - old_time
-        old_time = new_time
-
-        #if delta_time > 110:
-            #pyb.LED(3).on()
-        #else:
-            #pyb.LED(3).off()
-
-        # Figure out steering and do steering PID
-        steering_new_result = figure_out_my_steering(line, img)
-        # error = setpoint - measured_value
-        steering_delta_result = (steering_new_result - steering_old_result) if (steering_old_result != None) else 0
-        steering_old_result = steering_new_result
-
-        steering_p_output = steering_new_result # Standard PID Stuff here... nothing particularly interesting :)
-        # integral = integral + error * dt
-        steering_i_output = max(min(steering_i_output + steering_new_result, STEERING_I_MAX), STEERING_I_MIN)
-        # STEERING_I_MAX = 0
-        # STEERING_I_MIN = -0
-        # derivative = (error - previous_error) / dt
-        steering_d_output = ((steering_delta_result * 1000) / delta_time) if delta_time else 0
-        steering_pid_output = (STEERING_P_GAIN * steering_p_output) + \
-                              (STEERING_I_GAIN * steering_i_output) + \
-                              (STEERING_D_GAIN * steering_d_output)
-        #print("new_result=%f, delta_result=%f, p_output=%f, i_output=%f, d_output=%f, pid_output + 90=%f" \
-                #% (steering_new_result, steering_delta_result, steering_p_output, steering_i_output, steering_d_output, steering_pid_output+90))
-        # STEERING_P_GAIN = -23.0 # Make this smaller as you increase your speed and vice versa.
-        # STEERING_I_GAIN = 0.0
-        # STEERING_D_GAIN = -9 # Make this larger as you increase your speed and vice versa.
-
-        # Steering goes from [-90,90] but we need to output [0,180] for the servos.
-        steering_output = STEERING_OFFSET + max(min(round(steering_pid_output), 180 - STEERING_OFFSET), STEERING_OFFSET - 180)
-        #steering_output_mapped = remap(steering_pid_output, -90, 90, STEERING_OFFSET - 90, STEERING_OFFSET + 90)
-
-        # Figure out throttle and do throttle PID
-        factor = abs(line.x2() - 90)
-        throttle_new_result = figure_out_my_throttle(steering_output, factor)
-        throttle_delta_result = (throttle_new_result - throttle_old_result) if (throttle_old_result != None) else 0
-        throttle_old_result = throttle_new_result
-
-        throttle_p_output = throttle_new_result # Standard PID Stuff here... nothing particularly interesting :)
-        # limit to THROTTLE_I_MIN < throttle < THROTTLE_I_MAX
-        throttle_i_output = max(min(throttle_i_output + throttle_new_result, THROTTLE_I_MAX), THROTTLE_I_MIN) # always 0 if we don't change THROTTLE_I_MAX or THROTTLE_I_MIN
-        # THROTTLE_I_MAX = 0
-        # THROTTLE_I_MIN = -0
-        throttle_d_output = ((throttle_delta_result * 1000) / delta_time) if delta_time else 0
-        throttle_pid_output = (THROTTLE_P_GAIN * throttle_p_output) + \
-                              (THROTTLE_I_GAIN * throttle_i_output) + \
-                              (THROTTLE_D_GAIN * throttle_d_output)
-        # THROTTLE_P_GAIN = 1.0
-        # THROTTLE_I_GAIN = 0.0
-        # THROTTLE_D_GAIN = 0.0
-        # output = Kp * error + Ki * integral + Kd * derivative
-
-        # Throttle goes from 0% to 100%.
-        throttle_output = max(min(round(throttle_pid_output), 100), 0)
-
-        if jump_start_counter > 0:
-            throttle_output = throttle_output + JUMP_START_THROTTLE_INCREASE
-
-        # y1 is ALWAYS 0
-        # y2 is ALWAYS 91
-        print_string = "Line Ok - throttle %d, steering %d - line t: %d°, r: %d, x1: %d, y1: %d, x2: %d, y2: %d, 1/2: %d, mag: %d" % \
-            (throttle_output , steering_output, line.theta(), line.rho(), line.x1(), line.y1(), line.x2(), line.y2(), sensor.width() / 2, line.magnitude())
-        #tup = (min(line.x1(), line.x2()), line.y1(), abs(line.x1() - line.x2()), abs(line.y1() - line.y2()))
-        #img.draw_rectangle(tup)
-
-        pyb.LED(1).off()
-        #pyb.LED(2).on()
-        green_led_timer_channel.pulse_width_percent(min(line.magnitude() * 4, 100))
-        pyb.LED(3).off()
-    else:
-        line_lost_count = line_lost_count + 1
-
-        if REVERSE:
-            throttle_output = throttle_output - 1
-
-            if line_lost_count > 30:
-                if line_lost_count == 11:
-                    #throttle_output = -1
-                    steering_output = invert_steering(steering_output)
-
-                #if line_lost_count > 11:
-                    #throttle_output = throttle_output - 1
-
-                if line_lost_count > 100:
-                    #throttle_output = 0
-                    pyb.LED(3).off()
-                else:
-                    pyb.LED(3).toggle()
-            else:
-                if line_lost_count == 3:
-                    steering_output = steering_output - 10 if steering_output < 90 else steering_output + 10
-                steering_output = max(min(steering_output, 180), 0)
+        pulse_sensor = adc.read()
+        #print("ADC = %d" % (pulse_sensor))
+        if  pyb.millis() - start_time2 > 5000:
+            min_pulse_sensor = pulse_sensor
+            max_pulse_sensor = pulse_sensor
+            start_time2 = pyb.millis()
         else:
-            throttle_output = throttle_output * .95 if (throttle_output > .1) else 0
-        print_string = "Line Lost - throttle %d, steering %d" % (throttle_output , steering_output)
+            min_pulse_sensor = min(min_pulse_sensor, pulse_sensor)
+            max_pulse_sensor = max(max_pulse_sensor, pulse_sensor)
+            print(str(min_pulse_sensor) + " - " + str(max_pulse_sensor))
 
-        pyb.LED(1).on()
-        pyb.LED(2).off()
-        green_led_timer_channel.pulse_width_percent(0)
+        #if ((pulse_sensor > 3622 and pulse_sensor < 3711)):
+            #detected_movement = True
+            ##print("ADC = %d - detected movement =%s" % (pulse_sensor, detected_movement))
+        #else:
+            #detected_movement = False
 
-    #print(throttle_output)
+
+        if line_lost_count > 5 and use_hist:
+            use_hist = False
+
+        if line_lost_count > 50 and not use_hist:
+            reset_sensor()
+            line_lost_count = 0
+            use_hist = True
+
+        if use_hist:
+            img = sensor.snapshot().histeq()
+        #elif use_binary:
+            #img = sensor.snapshot().binary(0)
+        else:
+            img = sensor.snapshot()#.histeq()#.lens_corr(3, .7)#.logpolar()#.linpolar()#.illuminvar().chrominvar().histeq()
+
+        if BINARY_VIEW: img = img.binary(COLOR_THRESHOLDS if COLOR_LINE_FOLLOWING else GRAYSCALE_THRESHOLDS)
+        if BINARY_VIEW: img.erode(1, threshold = 3).dilate(1, threshold = 1)
+        if DO_NOTHING: continue
+
+        # We call get regression below to get a robust linear regression of the field of view.
+        # This returns a line object which we can use to steer the robocar.
+
+        line = img.get_regression(threshold5, \
+            area_threshold = AREA_THRESHOLD, pixels_threshold = PIXELS_THRESHOLD, \
+            robust = True)
+
+        print_string = ""
+
+        if line and (line.magnitude() >= MAG_THRESHOLD):
+            #print('2 Garbage collect free: {} allocated: {}'.format(gc.mem_free(), gc.mem_alloc()))
+            line_lost_count = max(0, line_lost_count - 2)
+            jump_start_counter = jump_start_counter - 1
+
+            if usb_is_connected:
+                img.draw_line(line.line(), color = lineColor)
+
+            new_time = pyb.millis()
+            delta_time = new_time - old_time
+            old_time = new_time
+
+            #if delta_time > 110:
+                #pyb.LED(3).on()
+            #else:
+                #pyb.LED(3).off()
+
+            # Figure out steering and do steering PID
+            #print('before steering free: {} allocated: {}'.format(gc.mem_free(), gc.mem_alloc()))
+            steering_new_result = figure_out_my_steering(line, img)
+            #print('after steering free: {} allocated: {}'.format(gc.mem_free(), gc.mem_alloc()))
+            # error = setpoint - measured_value
+            steering_delta_result = (steering_new_result - steering_old_result) if (steering_old_result != None) else 0
+            steering_old_result = steering_new_result
+
+            steering_p_output = steering_new_result # Standard PID Stuff here... nothing particularly interesting :)
+            # integral = integral + error * dt
+            steering_i_output = max(min(steering_i_output + steering_new_result, STEERING_I_MAX), STEERING_I_MIN)
+            # STEERING_I_MAX = 0
+            # STEERING_I_MIN = -0
+            # derivative = (error - previous_error) / dt
+            steering_d_output = ((steering_delta_result * 1000) / delta_time) if delta_time else 0
+            steering_pid_output = (STEERING_P_GAIN * steering_p_output) + \
+                                  (STEERING_I_GAIN * steering_i_output) + \
+                                  (STEERING_D_GAIN * steering_d_output)
+            #print("new_result=%f, delta_result=%f, p_output=%f, i_output=%f, d_output=%f, pid_output + 90=%f" \
+                    #% (steering_new_result, steering_delta_result, steering_p_output, steering_i_output, steering_d_output, steering_pid_output+90))
+            # STEERING_P_GAIN = -23.0 # Make this smaller as you increase your speed and vice versa.
+            # STEERING_I_GAIN = 0.0
+            # STEERING_D_GAIN = -9 # Make this larger as you increase your speed and vice versa.
+
+            # Steering goes from [-90,90] but we need to output [0,180] for the servos.
+            steering_output = STEERING_OFFSET + max(min(round(steering_pid_output), 180 - STEERING_OFFSET), STEERING_OFFSET - 180)
+            #steering_output_mapped = remap(steering_pid_output, -90, 90, STEERING_OFFSET - 90, STEERING_OFFSET + 90)
+
+            # Figure out throttle and do throttle PID
+            factor = abs(line.x2() - 90)
+            throttle_new_result = figure_out_my_throttle(steering_output, factor)
+            throttle_delta_result = (throttle_new_result - throttle_old_result) if (throttle_old_result != None) else 0
+            throttle_old_result = throttle_new_result
+
+            throttle_p_output = throttle_new_result # Standard PID Stuff here... nothing particularly interesting :)
+            # limit to THROTTLE_I_MIN < throttle < THROTTLE_I_MAX
+            throttle_i_output = max(min(throttle_i_output + throttle_new_result, THROTTLE_I_MAX), THROTTLE_I_MIN) # always 0 if we don't change THROTTLE_I_MAX or THROTTLE_I_MIN
+            # THROTTLE_I_MAX = 0
+            # THROTTLE_I_MIN = -0
+            throttle_d_output = ((throttle_delta_result * 1000) / delta_time) if delta_time else 0
+            throttle_pid_output = (THROTTLE_P_GAIN * throttle_p_output) + \
+                                  (THROTTLE_I_GAIN * throttle_i_output) + \
+                                  (THROTTLE_D_GAIN * throttle_d_output)
+            # THROTTLE_P_GAIN = 1.0
+            # THROTTLE_I_GAIN = 0.0
+            # THROTTLE_D_GAIN = 0.0
+            # output = Kp * error + Ki * integral + Kd * derivative
+
+            # Throttle goes from 0% to 100%.
+            throttle_output = max(min(round(throttle_pid_output), 100), 0)
+
+            if jump_start_counter > 0:
+                throttle_output = throttle_output + JUMP_START_THROTTLE_INCREASE
+
+            # y1 is ALWAYS 0
+            # y2 is ALWAYS 91
+            print_string = "Line Ok - throttle %d, steering %d - line t: %d°, r: %d, x1: %d, y1: %d, x2: %d, y2: %d, 1/2: %d, mag: %d" % \
+                (throttle_output , steering_output, line.theta(), line.rho(), line.x1(), line.y1(), line.x2(), line.y2(), sensor.width() / 2, line.magnitude())
+            #tup = (min(line.x1(), line.x2()), line.y1(), abs(line.x1() - line.x2()), abs(line.y1() - line.y2()))
+            #img.draw_rectangle(tup)
+
+            pyb.LED(1).off()
+            #pyb.LED(2).on()
+            green_led_timer_channel.pulse_width_percent(min(line.magnitude() * 4, 100))
+            pyb.LED(3).off()
+
+            #print('3 Garbage collect free: {} allocated: {}'.format(gc.mem_free(), gc.mem_alloc()))
+        else:
+            line_lost_count = line_lost_count + 1
+
+            if REVERSE:
+                throttle_output = throttle_output - 1
+
+                if line_lost_count > 30:
+                    if line_lost_count == 11:
+                        #throttle_output = -1
+                        steering_output = invert_steering(steering_output)
+
+                    #if line_lost_count > 11:
+                        #throttle_output = throttle_output - 1
+
+                    if line_lost_count > 100:
+                        #throttle_output = 0
+                        pyb.LED(3).off()
+                    else:
+                        pyb.LED(3).toggle()
+                else:
+                    if line_lost_count == 3:
+                        steering_output = steering_output - 10 if steering_output < 90 else steering_output + 10
+                    steering_output = max(min(steering_output, 180), 0)
+            else:
+                throttle_output = throttle_output * .95 if (throttle_output > .1) else 0
+            print_string = "Line Lost - throttle %d, steering %d" % (throttle_output , steering_output)
+
+            pyb.LED(1).on()
+            green_led.off()
+            green_led_timer_channel.pulse_width_percent(0)
+
+        #print('4 Garbage collect free: {} allocated: {}'.format(gc.mem_free(), gc.mem_alloc()))
+
+        #print(throttle_output)
+        if WRITE_FILE:
+            f.write(str(throttle_output) + "," + str(steering_output) + "\r")
+        set_servos(throttle_output, steering_output)
+        #if DEBUG_LINE_STATUS:
+            #print("FPS %f - %s" % (clock.fps(), print_string))
+
+        if (WRITE_FILE and pyb.millis() - start_time > 2000):
+            f.flush()
+            start_time = pyb.millis()
+
     if WRITE_FILE:
-        f.write(str(throttle_output) + "," + str(steering_output) + "\r")
-    set_servos(throttle_output, steering_output)
-    if DEBUG_LINE_STATUS:
-        print("FPS %f - %s" % (clock.fps(), print_string))
-
-    if (WRITE_FILE and pyb.millis() - start_time > 2000):
-        f.flush()
-        start_time = pyb.millis()
-
-if WRITE_FILE:
-    f.close()
+        f.close()
+except Exception as exc:
+    print(exc)

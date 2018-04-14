@@ -13,7 +13,7 @@
 # This work is licensed under the MIT license.
 ###############################################################
 
-import sensor, image, time, math, pyb, uio
+import sensor, image, time, math, pyb, uio, sys, array
 from pyb import Pin, Timer
 from pyb import ADC
 from file_utils import ConfigFile
@@ -76,10 +76,56 @@ adc = ADC("P6") # Must always be "P6".
 i = 0
 throttle_output = i
 
-print("min_speed = " + ConfigFile().get_property("min_speed"))
+read_value = ConfigFile().get_property("min_speed")
+print("min_speed = " + read_value if read_value else "unknown")
+
+min_pulse_sensor = 9999
+max_pulse_sensor = 0
+start_time = pyb.millis()
+start_time2 = pyb.millis()
+
+#tim = pyb.Timer(4, freq=20)         # create a timer running at 10Hz
+#buf = bytearray(100)                # creat a buffer to store the samples
+#adc.read_timed(buf, tim)            # sample 100 values, taking 10s
+
+#for val in buf:                     # loop over all values
+    #print(val)                      # print the value out
+
+for a in ('b' , 'B' , 'h', 'H' , 'i' , 'I' , 'l' , 'L' , 'q' , 'Q' , 'f' , 'd'):
+#while True:
+    print("read" + str(adc.read() / 16))
+    #buf = bytearray(10) #array.array('h')                # create a buffer of 100 bytes
+    buf = array.array(a)                # create a buffer of 100 bytes
+    adc.read_timed(buf, 10)             # read analog values into buf at 10Hz
+                                        #   this will take 10 seconds to finish
+    print(buf)
+    for val in buf:                     # loop over all values
+        print(val)                      # print the value out
+
+sys.exit()
+start_time = pyb.millis()
+while pyb.elapsed_millis(start_time) < 50:
+    print(adc.read())
+
+while pyb.elapsed_millis(start_time) < 5000 or abs(max_pulse_sensor - min_pulse_sensor) < 100:
+    pulse_sensor = adc.read()
+    #print("ADC = %d" % (pulse_sensor))
+    if  pyb.elapsed_millis(start_time2) > 1000:
+        min_pulse_sensor = pulse_sensor
+        max_pulse_sensor = pulse_sensor
+        start_time2 = pyb.millis()
+    else:
+        min_pulse_sensor = min(min_pulse_sensor, pulse_sensor)
+        max_pulse_sensor = max(max_pulse_sensor, pulse_sensor)
+        print(str(min_pulse_sensor) + " - " + str(max_pulse_sensor))
+    pyb.delay(100)
+    if (pyb.elapsed_millis(start_time) > 5000):
+        start_time = pyb.millis()
+
 
 pyb.delay(500)
 pulse_sensor_prev = adc.read()
+
 sensed_movement = False
 while not sensed_movement:
 
@@ -87,11 +133,12 @@ while not sensed_movement:
     set_servos(throttle_output, 100)
 
     pulse_sensor = adc.read()
-    sensed_movement =  abs(pulse_sensor_prev - pulse_sensor) > 50
+    sensed_movement =  abs(pulse_sensor_prev - pulse_sensor) > 50 and abs(pulse_sensor_prev - pulse_sensor) < 150 and \
+        ((pulse_sensor > min_pulse_sensor - 100 and pulse_sensor < max_pulse_sensor) or pulse_sensor > min_pulse_sensor and (pulse_sensor < max_pulse_sensor + 100))
     print("pulse_sensor_prev = %d, pulse_sensor = %d, sensed_movement = %s" % (pulse_sensor_prev, pulse_sensor, sensed_movement))
     pulse_sensor_prev = round((pulse_sensor_prev + pulse_sensor) / 2.0)
 
-    if i > 45:
+    if i > 60:
         print("hit failsafe")
         sensed_movement = True
     else:

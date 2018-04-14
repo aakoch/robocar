@@ -15,9 +15,28 @@ DEG_120 = micropython.const(round(2 * math.pi / 3)) # 2PI/3 = 120º
 DEG_240 = micropython.const(round(4 * math.pi / 3)) # 4PI/3 = 240º
 RBG_MAX = micropython.const(97)
 
-red_led   = pyb.LED(1)
-green_led = pyb.LED(2)
-blue_led  = pyb.LED(3)
+try:
+    red_led.toggle()
+except NameError:
+    red_led   = pyb.LED(1)
+
+try:
+    green_led.toggle()
+except NameError:
+    green_led   = pyb.LED(2)
+
+try:
+    blue_led.toggle()
+except NameError:
+    blue_led   = pyb.LED(3)
+
+# old
+#if (not hasattr(globals(), "red_led")):
+    #red_led   = pyb.LED(1)
+#if (not hasattr(globals(), "green_led")):
+    #green_led = pyb.LED(2)
+#if (not hasattr(globals(), "blue_led")):
+    #blue_led  = pyb.LED(3)
 
 def leds_on(timer):
     red_led.on()
