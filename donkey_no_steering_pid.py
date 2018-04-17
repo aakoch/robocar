@@ -15,7 +15,7 @@ def remap(x, in_min, in_max, out_min, out_max):
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
 
 def constrain(val, min_val, max_val):
-    return float(min(max_val, max(min_val, val)))
+    return min(max_val, max(min_val, val))
 
 try:
     usb = pyb.USB_VCP() # This is a serial port object that allows you to
@@ -57,7 +57,6 @@ try:
     # Settings
     ###########
 
-    LOW_LIGHT = True # at night, my thresholds don't work upstairs and the hist() throws things off
     WRITE_FILE = False
     REVERSE = False
     COLOR_LINE_FOLLOWING = True # False to use grayscale thresholds, true to use color thresholds.
@@ -69,7 +68,14 @@ try:
     #COLOR_THRESHOLDS = [(1, 80, -25, 28, -58, -10)] # Blue tape line
     #COLOR_THRESHOLDS = [(1, 80, -25, 37, -76, -47)] # Blue tape line 2 - upstairs - sunny
     #COLOR_THRESHOLDS = [(1, 80, -25, 37, -76, 0)] # Blue tape line 2 - upstairs - cloudy
-    COLOR_THRESHOLDS = [(19, 81, -24, 21, -35, -8)] # with sensor.set_auto_exposure(False, exposure_us=20000)
+    #COLOR_THRESHOLDS = [(19, 81, -24, 21, -35, -8)] # with sensor.set_auto_exposure(False, exposure_us=20000)
+
+    # when L min, mean, medium, max was 26, 47, 48, 70, this didn't work: COLOR_THRESHOLDS = [(19, 81, -24, 21, -35, -8)]
+    #COLOR_THRESHOLDS = [(36, 55, -19, 39, -77, -25)] # for when L is 26, 47, 48, 70
+
+    #COLOR_THRESHOLDS = [(36, 80, -19, 39, -77, -25)] # for when L is 5, 44, 46, 93
+    COLOR_THRESHOLDS = [(36, 80, -19, 39, -77, -9)] # for when L is 37, 70, 70, 100
+
     #kitchen table:
     #COLOR_THRESHOLDS = [(30, 78, -18, 28, -70, -19)]
     GRAYSCALE_THRESHOLDS = [(240, 255)] # White Line.
@@ -146,7 +152,17 @@ try:
 
         dist_from_90 = abs(steering - 90)
 
-        return (90 - dist_from_90) / 5
+        throttle_linear = (90 - dist_from_90) / 7
+
+        if steering < 90:
+            throttle_exp = (90 - dist_from_90) / 5 / (abs(steering - 91) / 9)
+        elif steering > 90:
+            throttle_exp = (90 - dist_from_90) / 5 / (abs(steering - 89) / 9)
+        else:
+            throttle_exp = 50
+
+        #return (throttle_linear + throttle_exp) / 2
+        return throttle_linear
 
         ## pow(sin()) of the steering angle is only non-zero when driving straight... e.g. steering ~= 90
         #t_result = math.pow(math.sin(math.radians(max(min(steering, 179.99), 0.0))), t_power)
@@ -162,19 +178,19 @@ try:
     # Servo Control Code
     device = pyb.UART(3, 19200, timeout_char = 100)
 
-    #def read_from_uart():
-        #read_count = 15
-        #chars = ""
-        #if not usb_is_connected:
-            #while device.any() and chars[:-1] != "\n" and read_count > 0:
-                #read_char = str(device.read(1).decode("utf-8"))
-                #chars = chars + read_char
-                #read_count = read_count - 1
-        #return chars
+    def read_from_uart():
+        read_count = 15
+        chars = ""
+        if not usb_is_connected:
+            while device.any() and chars[:-1] != "\n" and read_count > 0:
+                read_char = str(device.read(1).decode("utf-8"))
+                chars = chars + read_char
+                read_count = read_count - 1
+        return chars
 
 
     def set_servos(throttle, steering):
-        throttle = remap(throttle, 0, 100, 1580, 1760)
+        throttle = remap(throttle, 0, 100, 1580, 1760) # (input * 15.8) + 180
 
         steering = remap(steering, 0, 180, STEERING_SERVO_MIN_US, STEERING_SERVO_MAX_US)
 
@@ -207,15 +223,13 @@ try:
         green_led.on()
 
     def turn_green_led_off(timer):
-        if not LOW_LIGHT:
-            green_led.off()
+        green_led.off()
 
-    if not LOW_LIGHT:
-        green_led_timer = Timer(4, freq=200)      # create a timer object using timer 4 - trigger at 1Hz
-        green_led_timer.callback(turn_green_led_on)          # set the callback to our tick function
-        green_led_timer_channel = green_led_timer.channel(1, Timer.PWM, callback=turn_green_led_off, pulse_width_percent=50)
+    green_led_timer = Timer(4, freq=200)      # create a timer object using timer 4 - trigger at 1Hz
+    green_led_timer.callback(turn_green_led_on)          # set the callback to our tick function
+    green_led_timer_channel = green_led_timer.channel(1, Timer.PWM, callback=turn_green_led_off, pulse_width_percent=50)
 
-        green_led_on = False
+    green_led_on = False
     magnitude = 0
 
     #def tick(timer):            # we will receive the timer object when being called
@@ -238,7 +252,9 @@ try:
         sensor.set_hmirror(True)
         sensor.set_windowing((int((sensor.width() / 2) - ((sensor.width() / 2) * FRAME_WIDE)), int(sensor.height() * (1.0 - FRAME_REGION)), \
                              int((sensor.width() / 2) + ((sensor.width() / 2) * FRAME_WIDE)), int(sensor.height() * FRAME_REGION) - BOTTOM_PX_TO_REMOVE))
-        sensor.skip_frames(time = 200)
+        sensor.set_auto_exposure(True)
+        #sensor.set_auto_exposure(False, exposure_us=500)
+        sensor.skip_frames(time = 1200)
         if COLOR_LINE_FOLLOWING: sensor.set_auto_gain(False)
         if COLOR_LINE_FOLLOWING: sensor.set_auto_whitebal(False)
 
@@ -286,7 +302,7 @@ try:
     start_time = pyb.millis()
     start_time2 = pyb.millis()
     jump_start_counter = 10
-    use_hist = True
+    use_hist = False
 
     adc = ADC("P6") # Must always be "P6".
 
@@ -294,11 +310,7 @@ try:
     min_pulse_sensor = 9999
     max_pulse_sensor = 0
     previous_steering = 90
-
-    if LOW_LIGHT:
-        red_led.on()
-        green_led.on()
-        blue_led.on()
+    count = -50
 
     while True:
         clock.tick()
@@ -326,29 +338,33 @@ try:
             ##detected_movement = False
 
 
-        if line_lost_count > 5 and use_hist:
-            use_hist = False
+        #if line_lost_count > 5 and use_hist:
+            #use_hist = False
 
-        if line_lost_count > 50 and not use_hist:
-            reset_sensor()
-            line_lost_count = 0
-            use_hist = True
+        #if line_lost_count > 50 and not use_hist:
+            ##reset_sensor() # I think I was just using this to force auto white balance or auto gain
+            #line_lost_count = 0
+            #use_hist = True
 
-        if use_hist and not LOW_LIGHT:
+        if use_hist:
             img = sensor.snapshot().histeq()
         #elif use_binary:
             #img = sensor.snapshot().binary(0)
         else:
             img = sensor.snapshot()#.histeq()#.lens_corr(3, .7)#.logpolar()#.linpolar()#.illuminvar().chrominvar().histeq()
 
-        stats = img.get_histogram().get_statistics()
 
-        print("%i, %i, %i, %i" % (stats.l_min(), stats.l_mean(), stats.l_median(), stats.l_max()))
-        if (stats.l_max() < 90):
-            sensor.set_auto_exposure(False, exposure_us=20000)
-        elif (stats.l_min() > 25):
-            sensor.set_auto_exposure(True)
+        #stats = img.get_statistics()
 
+        #if (stats.l_max() - stats.l_min() < 26):
+            #sensor.set_auto_exposure(False, exposure_us=20000)
+        #elif (stats.l_max() - stats.l_min() > 30):
+            #sensor.set_auto_exposure(True)
+
+
+        # 74, 98, 100, 100 was too bright, but the camera thought 25, 50, 50, 61 was too low. I
+        # probably need to change the condition for when it changes the exposure.
+        # 26, 55, 55, 67 didn't look too dark
 
         if BINARY_VIEW: img = img.binary(COLOR_THRESHOLDS if COLOR_LINE_FOLLOWING else GRAYSCALE_THRESHOLDS)
         if BINARY_VIEW: img.erode(1, threshold = 3).dilate(1, threshold = 1)
@@ -417,15 +433,31 @@ try:
             #tup = (min(line.x1(), line.x2()), line.y1(), abs(line.x1() - line.x2()), abs(line.y1() - line.y2()))
             #img.draw_rectangle(tup)
 
-            if not LOW_LIGHT:
-                pyb.LED(1).off()
-                #pyb.LED(2).on()
-                green_led_timer_channel.pulse_width_percent(min(line.magnitude() * 4, 100))
-                pyb.LED(3).off()
+            pyb.LED(1).off()
+            #pyb.LED(2).on()
+            green_led_timer_channel.pulse_width_percent(min(line.magnitude() * 4, 100))
+            pyb.LED(3).off()
 
             #print('3 Garbage collect free: {} allocated: {}'.format(gc.mem_free(), gc.mem_alloc()))
         else:
             line_lost_count = line_lost_count + 1
+
+
+            #print("%s, %i" % (stats, sensor.get_exposure_us()))
+            stats = img.get_statistics()
+
+            if stats.l_mean() > 70:
+                new_exposure_us = sensor.get_exposure_us() - 500
+            else:
+                new_exposure_us = sensor.get_exposure_us() + 500
+
+            count += 1
+            if (count > -10):
+                rgb_gain = sensor.get_rgb_gain_db()
+                sensor.set_auto_whitebal(False, rgb_gain_db = (rgb_gain[0], 0, 6))
+
+            sensor.set_auto_exposure(False, exposure_us = new_exposure_us)
+            pyb.udelay(200)
 
             if REVERSE:
                 throttle_output = throttle_output - 1
@@ -438,24 +470,22 @@ try:
                     #if line_lost_count > 11:
                         #throttle_output = throttle_output - 1
 
-                    if not LOW_LIGHT:
-                        if line_lost_count > 100:
-                            #throttle_output = 0
-                            pyb.LED(3).off()
-                        else:
-                            pyb.LED(3).toggle()
+                    if line_lost_count > 100:
+                        #throttle_output = 0
+                        pyb.LED(3).off()
+                    else:
+                        pyb.LED(3).toggle()
                 else:
                     if line_lost_count == 3:
                         steering_output = steering_output - 10 if steering_output < 90 else steering_output + 10
                     steering_output = max(min(steering_output, 180), 0)
             else:
                 throttle_output = throttle_output * .95 if (throttle_output > .1) else 0
-            print_string = "Line Lost - throttle %d, steering %d" % (throttle_output , steering_output)
+            print_string = "Line Lost - throttle %d, steering %d, exposure %d" % (throttle_output, steering_output, sensor.get_exposure_us())
 
-            if not LOW_LIGHT:
-                pyb.LED(1).on()
-                green_led.off()
-                green_led_timer_channel.pulse_width_percent(0)
+            pyb.LED(1).on()
+            green_led.off()
+            green_led_timer_channel.pulse_width_percent(0)
 
         #print('4 Garbage collect free: {} allocated: {}'.format(gc.mem_free(), gc.mem_alloc()))
 
