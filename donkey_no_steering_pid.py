@@ -6,16 +6,10 @@ import sensor, image, time, math, pyb, uio, machine, sys, gc
 from pyb import Pin, Timer
 from pyb import ADC
 from file_utils import ConfigFile
+from util_functions import *
 from machine import WDT
 #from pulse_led import run_leds
 from micropython import const
-
-
-def remap(x, in_min, in_max, out_min, out_max):
-    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
-
-def constrain(val, min_val, max_val):
-    return min(max_val, max(min_val, val))
 
 try:
     usb = pyb.USB_VCP() # This is a serial port object that allows you to
@@ -62,7 +56,7 @@ try:
     COLOR_LINE_FOLLOWING = True # False to use grayscale thresholds, true to use color thresholds.
     JUMP_START_THROTTLE_INCREASE = 1
     DEBUG_PRINT_UART = False # whether to write UART debug
-    DEBUG_LINE_STATUS = True
+    DEBUG_LINE_STATUS = False
     #COLOR_THRESHOLDS = [( 85, 100, -40, 127, 20, 127)] # Yellow Line.
     #COLOR_THRESHOLDS =[(85, 100, -3, 127, -9, 94)] # do space
     #COLOR_THRESHOLDS = [(1, 80, -25, 28, -58, -10)] # Blue tape line
@@ -106,7 +100,7 @@ try:
     THROTTLE_I_MIN = -0.0
     THROTTLE_I_MAX = 0.0
     THROTTLE_D_GAIN = 0.0
-    #MIN_THROTTLE = 51
+    MIN_THROTTLE = 10
 
     # Tweak these values for your robocar.
     STEERING_FACTOR = 1 # 1-
@@ -137,8 +131,54 @@ try:
 
 
     def figure_out_my_steering(line, img):
+        center = round(img.width() / 2)
 
-        return remap(line.x1(), -20, img.width() + 20, 180, 0)
+        #angle_1 = remap(line.x1() * 1.1, 0, img.width(), -90, 90)
+        angle_1 = -math.degrees(math.atan((center - line.x1()) / (img.height() - BOTTOM_PX_TO_REMOVE)))
+        #if (line.x1() < img.width()):
+            #angle_1 = -angle_1
+        angle_2 = theta(line) / 1.6
+        print("angle_1=%.3f, angle_2=%.3f" % (angle_1, angle_2))
+        steering = angle_1 + angle_2
+
+        #steering = remap(line.x1(), 0, img.width(), 180, 0)
+        img.draw_string(10, 10, str(round(steering)))
+        return constrain(90 - steering, 0, 180)
+        #x1 = (line.x1() - center) * 2.5
+        #x2 = line.x2() - center
+
+        ##x1_norm = (line.x1() - center) / center
+        ##print(str(math.sinh(x1_norm * math.pi) * 8))
+
+        #distance_x2_from_center = center - x2
+        ##img.draw_string(10, 10, str(round(x1 - x2)))
+        ##steering = remap(line.x1(), 0, img.width(), 0, 180)
+        ##img.draw_string(10, 30, str(steering + (distance_x2_from_center) / 3))
+        ##img.draw_string(10, 50, str(line.theta() - 180 if line.theta() > 90 else line.theta()))
+
+        #diff = x1 - x2
+
+        ##if (x1 - x2 > 0 and x1 < 0):
+            ### line is on the left side going to the right, so car will auto-correct itself by going straight
+            ##for i in range(-1, 1):
+                ##img.draw_line((round(img.width() / 2 + i), 0, round(img.width() / 2 + i), img.height()), color = (0, 0, 255))
+            ##for i in range(0, 9):
+                ##img.draw_line((i, 0, i, img.height()), color = (255, 0, 0))
+            ##steering = 90# + (diff / 2)
+        ##elif (x1 - x2 < 0 and x1 > 0):
+            ### line is on the right side going to the left, so car will auto-correct itself by going straight
+            ##for i in range(-1, 1):
+                ##img.draw_line((round(img.width() / 2 + i), 0, round(img.width() / 2 + i), img.height()), color = (0, 0, 255))
+            ##for i in range(1, 10):
+                ##img.draw_line((img.width() - i, 0, img.width() - i, img.height()), color = (255, 0, 0))
+            ##steering = 90# + (diff / 2)
+        ##else:
+
+        ##steering = remap(line.x1(), 0, img.width(), 180, 0)
+        #steering = 180 - (1 - math.cos(line.x1() / img.width() * math.pi)) * 90
+
+
+        #return steering #constrain(steering, 0, 180)
 
     # Solve: THROTTLE_CUT_OFF_RATE = pow(sin(90 +/- THROTTLE_CUT_OFF_ANGLE), x) for x...
     #        -> sin(90 +/- THROTTLE_CUT_OFF_ANGLE) = cos(THROTTLE_CUT_OFF_ANGLE)
@@ -149,19 +189,10 @@ try:
     # 0.301029995663981 / 0.000264641078415 = 1137.502905697495267 (t_power)???
 
     def figure_out_my_throttle(steering, factor): # steering -> [0:180]
-
         dist_from_90 = abs(steering - 90)
-
-        throttle_linear = (90 - dist_from_90) / 7
-
-        if steering < 90:
-            throttle_exp = (90 - dist_from_90) / 5 / (abs(steering - 91) / 9)
-        elif steering > 90:
-            throttle_exp = (90 - dist_from_90) / 5 / (abs(steering - 89) / 9)
-        else:
-            throttle_exp = 50
-
-        #return (throttle_linear + throttle_exp) / 2
+        throttle_linear = max((90 - dist_from_90) / 6, MIN_THROTTLE)
+        #normalized = throttle_linear / 12.9
+        #throttle_out = (-math.cos(normalized * math.pi) + 1) * 6.5
         return throttle_linear
 
         ## pow(sin()) of the steering angle is only non-zero when driving straight... e.g. steering ~= 90
@@ -254,9 +285,11 @@ try:
                              int((sensor.width() / 2) + ((sensor.width() / 2) * FRAME_WIDE)), int(sensor.height() * FRAME_REGION) - BOTTOM_PX_TO_REMOVE))
         sensor.set_auto_exposure(True)
         #sensor.set_auto_exposure(False, exposure_us=500)
-        sensor.skip_frames(time = 1200)
+        sensor.skip_frames(time = 1400)
         if COLOR_LINE_FOLLOWING: sensor.set_auto_gain(False)
         if COLOR_LINE_FOLLOWING: sensor.set_auto_whitebal(False)
+
+
 
     reset_sensor()
 
@@ -285,7 +318,7 @@ try:
             threshold5 = GRAYSCALE_THRESHOLDS
 
     if COLOR_LINE_FOLLOWING:
-        lineColor = (127, 127, 127)
+        lineColor = (255, 127, 127)
     else:
         lineColor = 127
 
@@ -310,7 +343,6 @@ try:
     min_pulse_sensor = 9999
     max_pulse_sensor = 0
     previous_steering = 90
-    count = -50
 
     while True:
         clock.tick()
@@ -375,13 +407,16 @@ try:
 
         line = img.get_regression(threshold5, \
             area_threshold = AREA_THRESHOLD, pixels_threshold = PIXELS_THRESHOLD, \
-            robust = True)
+            robust = True, roi=(0, 0, img.width(), round(img.height() / 2)))
 
+        img.draw_line((round(img.width() / 2), 0, round(img.width() / 2), img.height()), color=(0, 0, 255))
         print_string = ""
 
         if line and (line.magnitude() >= MAG_THRESHOLD):
             #print('2 Garbage collect free: {} allocated: {}'.format(gc.mem_free(), gc.mem_alloc()))
             line_lost_count = max(0, line_lost_count - 2)
+            #if (line_lost_count <= 0):
+                #sensor.set_auto_whitebal(True)
             jump_start_counter = jump_start_counter - 1
 
             if usb_is_connected:
@@ -451,12 +486,25 @@ try:
             else:
                 new_exposure_us = sensor.get_exposure_us() + 500
 
-            count += 1
-            if (count > -10):
+            sensor.set_auto_exposure(False, exposure_us = new_exposure_us)
+
+            if (line_lost_count == 1):
+                rgb_gain = sensor.get_rgb_gain_db()
+                sensor.set_auto_whitebal(False, rgb_gain_db = (rgb_gain[0], 0, 6))
+            elif (line_lost_count > 30 and line_lost_count < 100):
+                sensor.set_auto_whitebal(True)
+            # for times when it loses the line, but momentum keeps it going
+            elif (line_lost_count == 100):
                 rgb_gain = sensor.get_rgb_gain_db()
                 sensor.set_auto_whitebal(False, rgb_gain_db = (rgb_gain[0], 0, 6))
 
-            sensor.set_auto_exposure(False, exposure_us = new_exposure_us)
+            #if (sensor.get_exposure_us() > 10000 or (line_lost_count > 10 and line_lost_count < 50)):
+                #print("increasing blue gain")
+                #rgb_gain = sensor.get_rgb_gain_db()
+                #sensor.set_auto_whitebal(False, rgb_gain_db = (rgb_gain[0], 0, 6))
+            #if (line_lost_count >= 50):
+                #sensor.set_auto_whitebal(True)
+
             pyb.udelay(200)
 
             if REVERSE:
@@ -481,7 +529,8 @@ try:
                     steering_output = max(min(steering_output, 180), 0)
             else:
                 throttle_output = throttle_output * .95 if (throttle_output > .1) else 0
-            print_string = "Line Lost - throttle %d, steering %d, exposure %d" % (throttle_output, steering_output, sensor.get_exposure_us())
+            print_string = "Line Lost - throttle %d, steering %d, exposure %d, count %d" % \
+                    (throttle_output, steering_output, sensor.get_exposure_us(), line_lost_count)
 
             pyb.LED(1).on()
             green_led.off()
