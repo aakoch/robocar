@@ -1,5 +1,7 @@
 #throttle_test.py
 ###############################################################
+# Deprecated: replaced by motion_detection.py
+#
 # Find the lowest throttle value the car will move.
 # This only works on specialized code on the Arduino. ***
 # The steering output of the Arduino interferes with the

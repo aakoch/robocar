@@ -33,3 +33,8 @@ class ConfigFile():
             print("Could not find property with name " + key)
             return None
         return value
+
+    def delete_property(self, key):
+        filename = key + ".config"
+        if (self._file_exists(filename)):
+            file = uos.remove(filename)

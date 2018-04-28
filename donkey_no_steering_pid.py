@@ -10,6 +10,32 @@ from util_functions import *
 from machine import WDT
 #from pulse_led import run_leds
 from micropython import const
+from class_camera import Camera
+
+#class Tricks():
+    #sensr = None
+    #counter = 0
+    #use_chromivar = False
+
+    #def set_sensor(self, sensr):
+        #self.sensr = sensr
+
+    #def should_try_next_trick(self, count):
+        #return count % 2
+
+    #def set_to_next_trick(self):
+        #self.counter += 1
+        #if (self.counter == 1):
+
+
+        #if (not use_chromivar and 10 < line_lost_count < 20):
+            #use_chromivar = True
+        #else:
+            #use_chromivar = False
+
+            #if (stats.l_mean() > 80):
+                #new_exposure_us = sensor.get_exposure_us() - 5000
+                #sensor.set_auto_exposure(False, exposure_us = new_exposure_us)
 
 try:
     usb = pyb.USB_VCP() # This is a serial port object that allows you to
@@ -55,8 +81,8 @@ try:
     REVERSE = False
     COLOR_LINE_FOLLOWING = True # False to use grayscale thresholds, true to use color thresholds.
     JUMP_START_THROTTLE_INCREASE = 1
-    DEBUG_PRINT_UART = False # whether to write UART debug
-    DEBUG_LINE_STATUS = False
+    DEBUG_PRINT_UART = True # whether to write UART debug
+    DEBUG_LINE_STATUS = True
     #COLOR_THRESHOLDS = [( 85, 100, -40, 127, 20, 127)] # Yellow Line.
     #COLOR_THRESHOLDS =[(85, 100, -3, 127, -9, 94)] # do space
     #COLOR_THRESHOLDS = [(1, 80, -25, 28, -58, -10)] # Blue tape line
@@ -68,7 +94,13 @@ try:
     #COLOR_THRESHOLDS = [(36, 55, -19, 39, -77, -25)] # for when L is 26, 47, 48, 70
 
     #COLOR_THRESHOLDS = [(36, 80, -19, 39, -77, -25)] # for when L is 5, 44, 46, 93
-    COLOR_THRESHOLDS = [(36, 80, -19, 39, -77, -9)] # for when L is 37, 70, 70, 100
+    #COLOR_THRESHOLDS = [(36, 80, -19, 39, -77, -9)] # for when L is 37, 70, 70, 100
+    COLOR_THRESHOLDS = [[(60, 55, -33, 0, -60, -21)], \
+            [(6, 55, -33, -10, -60, -23)], \
+            [(48, 68, -16, 6, -61, -18)], \
+            [(61, 71, -16, -1, -57, -8)]]
+
+    CHROMIVAR_THRESHOLD = [(32, 41, -4, 94, -79, -29)]
 
     #kitchen table:
     #COLOR_THRESHOLDS = [(30, 78, -18, 28, -70, -19)]
@@ -78,10 +110,10 @@ try:
     FRAME_SIZE = sensor.QQVGA # Frame size.
     FRAME_REGION = 0.8 # Percentage of the image from the bottom (0 - 1.0).
     FRAME_WIDE = 1.0 # Percentage of the frame width.
-    BOTTOM_PX_TO_REMOVE = const(4) # maybe I screwed something up with my camera, but the last few rows are just noise
+    BOTTOM_PX_TO_REMOVE = const(8) # maybe I screwed something up with my camera, but the last few rows are just noise
 
-    AREA_THRESHOLD = const(20) # Raise to filter out false detections.
-    PIXELS_THRESHOLD = const(20) # Raise to filter out false detections.
+    AREA_THRESHOLD = const(25) # Raise to filter out false detections.
+    PIXELS_THRESHOLD = const(25) # Raise to filter out false detections.
     MAG_THRESHOLD = const(6) # Raise to filter out false detections.
     MIXING_RATE = 0.8 # Percentage of a new line detection to mix into current steering.
 
@@ -100,7 +132,7 @@ try:
     THROTTLE_I_MIN = -0.0
     THROTTLE_I_MAX = 0.0
     THROTTLE_D_GAIN = 0.0
-    MIN_THROTTLE = 10
+    MIN_THROTTLE = 0
 
     # Tweak these values for your robocar.
     STEERING_FACTOR = 1 # 1-
@@ -112,8 +144,12 @@ try:
     STEERING_D_GAIN = -9 # Make this larger as you increase your speed and vice versa.
 
     # Tweak these values for your robocar.
-    THROTTLE_SERVO_MIN_US = const(1268) # from output_throttle Arduino sketch
-    THROTTLE_SERVO_MAX_US = const(1692)
+    #THROTTLE_SERVO_MIN_US = const(1268) # from output_throttle Arduino sketch (power low?)
+    #THROTTLE_SERVO_MAX_US = const(1692)
+
+    # With LiPo battery (testing)
+    THROTTLE_SERVO_MIN_US = const(1580) # from output_throttle Arduino sketch (power low?)
+    THROTTLE_SERVO_MAX_US = const(1600)
 
     # Tweak these values for your robocar.
     STEERING_SERVO_MIN_US = const(1276)
@@ -138,55 +174,15 @@ try:
         #if (line.x1() < img.width()):
             #angle_1 = -angle_1
         angle_2 = theta(line) / 1.6
-        print("angle_1=%.3f, angle_2=%.3f" % (angle_1, angle_2))
+        #print("angle_1=%.3f, angle_2=%.3f" % (angle_1, angle_2))
         steering = angle_1 + angle_2
 
         #steering = remap(line.x1(), 0, img.width(), 180, 0)
         img.draw_string(10, 10, str(round(steering)))
         return constrain(90 - steering, 0, 180)
-        #x1 = (line.x1() - center) * 2.5
-        #x2 = line.x2() - center
 
-        ##x1_norm = (line.x1() - center) / center
-        ##print(str(math.sinh(x1_norm * math.pi) * 8))
-
-        #distance_x2_from_center = center - x2
-        ##img.draw_string(10, 10, str(round(x1 - x2)))
-        ##steering = remap(line.x1(), 0, img.width(), 0, 180)
-        ##img.draw_string(10, 30, str(steering + (distance_x2_from_center) / 3))
-        ##img.draw_string(10, 50, str(line.theta() - 180 if line.theta() > 90 else line.theta()))
-
-        #diff = x1 - x2
-
-        ##if (x1 - x2 > 0 and x1 < 0):
-            ### line is on the left side going to the right, so car will auto-correct itself by going straight
-            ##for i in range(-1, 1):
-                ##img.draw_line((round(img.width() / 2 + i), 0, round(img.width() / 2 + i), img.height()), color = (0, 0, 255))
-            ##for i in range(0, 9):
-                ##img.draw_line((i, 0, i, img.height()), color = (255, 0, 0))
-            ##steering = 90# + (diff / 2)
-        ##elif (x1 - x2 < 0 and x1 > 0):
-            ### line is on the right side going to the left, so car will auto-correct itself by going straight
-            ##for i in range(-1, 1):
-                ##img.draw_line((round(img.width() / 2 + i), 0, round(img.width() / 2 + i), img.height()), color = (0, 0, 255))
-            ##for i in range(1, 10):
-                ##img.draw_line((img.width() - i, 0, img.width() - i, img.height()), color = (255, 0, 0))
-            ##steering = 90# + (diff / 2)
-        ##else:
-
-        ##steering = remap(line.x1(), 0, img.width(), 180, 0)
-        #steering = 180 - (1 - math.cos(line.x1() / img.width() * math.pi)) * 90
-
-
-        #return steering #constrain(steering, 0, 180)
-
-    # Solve: THROTTLE_CUT_OFF_RATE = pow(sin(90 +/- THROTTLE_CUT_OFF_ANGLE), x) for x...
-    #        -> sin(90 +/- THROTTLE_CUT_OFF_ANGLE) = cos(THROTTLE_CUT_OFF_ANGLE)
     t_power = math.log(THROTTLE_CUT_OFF_RATE) / math.log(math.cos(math.radians(THROTTLE_CUT_OFF_ANGLE)))
-    # cos(0) = 1 -> log 0
-    # cos(2) = 0.999390827019096 -> log = -0.000264641078415
-    # log(.5) = -0.301029995663981
-    # 0.301029995663981 / 0.000264641078415 = 1137.502905697495267 (t_power)???
+
 
     def figure_out_my_throttle(steering, factor): # steering -> [0:180]
         dist_from_90 = abs(steering - 90)
@@ -195,19 +191,9 @@ try:
         #throttle_out = (-math.cos(normalized * math.pi) + 1) * 6.5
         return throttle_linear
 
-        ## pow(sin()) of the steering angle is only non-zero when driving straight... e.g. steering ~= 90
-        #t_result = math.pow(math.sin(math.radians(max(min(steering, 179.99), 0.0))), t_power)
-        ## 180 degrees = pi radians
-        ## sin(0 deg) = 0
-        ## sin(90 deg) = 1
-        ## sin(180 deg) = 0
-
-        ## the bigger the factor, the more we slow
-        ##return max(MIN_THROTTLE, (t_result * THROTTLE_GAIN) + THROTTLE_OFFSET - (factor / 10)) + 15
-        #return ((t_result * THROTTLE_GAIN) + THROTTLE_OFFSET)
-
     # Servo Control Code
     device = pyb.UART(3, 19200, timeout_char = 100)
+    prev_throttle = int(ConfigFile().get_property("min_speed"))
 
     def read_from_uart():
         read_count = 15
@@ -221,7 +207,10 @@ try:
 
 
     def set_servos(throttle, steering):
-        throttle = remap(throttle, 0, 100, 1580, 1760) # (input * 15.8) + 180
+        if (throttle == 0):
+            throttle = 1580
+        else:
+            throttle = remap(throttle, 1, 100, prev_throttle, THROTTLE_SERVO_MAX_US) # (input * 15.8) + 180
 
         steering = remap(steering, 0, 180, STEERING_SERVO_MIN_US, STEERING_SERVO_MAX_US)
 
@@ -281,15 +270,24 @@ try:
         sensor.set_framesize(FRAME_SIZE)
         sensor.set_vflip(True)
         sensor.set_hmirror(True)
-        sensor.set_windowing((int((sensor.width() / 2) - ((sensor.width() / 2) * FRAME_WIDE)), int(sensor.height() * (1.0 - FRAME_REGION)), \
-                             int((sensor.width() / 2) + ((sensor.width() / 2) * FRAME_WIDE)), int(sensor.height() * FRAME_REGION) - BOTTOM_PX_TO_REMOVE))
-        sensor.set_auto_exposure(True)
-        #sensor.set_auto_exposure(False, exposure_us=500)
+        #sensor.set_windowing((int((sensor.width() / 2) - ((sensor.width() / 2) * FRAME_WIDE)), int(sensor.height() * (1.0 - FRAME_REGION)), \
+                             #int((sensor.width() / 2) + ((sensor.width() / 2) * FRAME_WIDE)), int(sensor.height() * FRAME_REGION) - BOTTOM_PX_TO_REMOVE))
+        #sensor.set_auto_exposure(True)
         sensor.skip_frames(time = 1400)
-        if COLOR_LINE_FOLLOWING: sensor.set_auto_gain(False)
-        if COLOR_LINE_FOLLOWING: sensor.set_auto_whitebal(False)
+        sensor.set_auto_gain(False)
+        sensor.set_auto_whitebal(False)
 
-
+    def find_brightest_area(img):
+        max_mean = 0
+        rect_x = 0
+        width = 10
+        for x in range(0, img.width() - width, width):
+            stats = img.get_statistics(roi = (x, 0, 11, width))
+            #print("bright stats=", x, width, stats)
+            if (stats.l_mean() > max_mean):
+                rect_x = x
+                max_mean = stats.l_mean()
+        return (rect_x, 0, 11, width)
 
     reset_sensor()
 
@@ -306,22 +304,7 @@ try:
     steering_output = STEERING_OFFSET
 
 
-    if COLOR_LINE_FOLLOWING:
-        if BINARY_VIEW:
-            threshold5 = [(50, 100, -128, 127, -128, 127)]
-        else:
-            threshold5 = COLOR_THRESHOLDS
-    else:
-        if BINARY_VIEW:
-            threshold5 = [(127, 255)]
-        else:
-            threshold5 = GRAYSCALE_THRESHOLDS
-
-    if COLOR_LINE_FOLLOWING:
-        lineColor = (255, 127, 127)
-    else:
-        lineColor = 127
-
+    threshold5 = COLOR_THRESHOLDS[0]
 
     if WRITE_FILE:
         f = uio.open("out.txt", "at")
@@ -335,7 +318,7 @@ try:
     start_time = pyb.millis()
     start_time2 = pyb.millis()
     jump_start_counter = 10
-    use_hist = False
+    use_hist = use_chromivar =False
 
     adc = ADC("P6") # Must always be "P6".
 
@@ -344,31 +327,16 @@ try:
     max_pulse_sensor = 0
     previous_steering = 90
 
+    camera = Camera()
+
     while True:
         clock.tick()
+
 
         #print('1 Garbage collect free: {} allocated: {}'.format(gc.mem_free(), gc.mem_alloc()))
 
         #if not usb_is_connected:
             #wdt.feed()
-
-        #pulse_sensor = adc.read()
-        ##print("ADC = %d" % (pulse_sensor))
-        #if  pyb.millis() - start_time2 > 5000:
-            #min_pulse_sensor = pulse_sensor
-            #max_pulse_sensor = pulse_sensor
-            #start_time2 = pyb.millis()
-        #else:
-            #min_pulse_sensor = min(min_pulse_sensor, pulse_sensor)
-            #max_pulse_sensor = max(max_pulse_sensor, pulse_sensor)
-            #print(str(min_pulse_sensor) + " - " + str(max_pulse_sensor))
-
-        ##if ((pulse_sensor > 3622 and pulse_sensor < 3711)):
-            ##detected_movement = True
-            ###print("ADC = %d - detected movement =%s" % (pulse_sensor, detected_movement))
-        ##else:
-            ##detected_movement = False
-
 
         #if line_lost_count > 5 and use_hist:
             #use_hist = False
@@ -382,30 +350,49 @@ try:
             img = sensor.snapshot().histeq()
         #elif use_binary:
             #img = sensor.snapshot().binary(0)
+
+        elif use_chromivar:
+            img = sensor.snapshot().chrominvar()#.histeq()#.lens_corr(3, .7)#.logpolar()#.linpolar()#.illuminvar().chrominvar().histeq()
         else:
-            img = sensor.snapshot()#.histeq()#.lens_corr(3, .7)#.logpolar()#.linpolar()#.illuminvar().chrominvar().histeq()
+            img = sensor.snapshot()
+        # check for bright lights
+        #rect = find_brightest_area(img)
+        #img.draw_rectangle(rect, color=(255,0,0))
+        #stats = img.get_statistics(roi=rect)
+        #print("bright stats=", stats)
+        #if (True or stats.l_mean() > 82):
+            #height = img.height() - 12 - BOTTOM_PX_TO_REMOVE;
+            #height = height - height % 16
+            #print(height)
+            #sensor.set_windowing((0, 0, img.width(), 120))
+            #sensor.skip_frames(10)
+            #img = sensor.snapshot()
+            #while(True):
+                #sensor.snapshot()
+                #sensor.flush()
 
+        #img.binary([(92, 100, -36, 127, -11, 127)]).save("binary.bmp")
+        #img = sensor.snapshot().difference("binary.bmp")
 
-        #stats = img.get_statistics()
-
-        #if (stats.l_max() - stats.l_min() < 26):
-            #sensor.set_auto_exposure(False, exposure_us=20000)
-        #elif (stats.l_max() - stats.l_min() > 30):
-            #sensor.set_auto_exposure(True)
+        stats = img.get_statistics()
+        print("regular stats=", stats)
+        #if stats.l_mean() > 70: # getting lighter/going into light region
+            #sensor.set_auto_exposure(False, exposure_us=sensor.get_exposure_us() - 1000)
+            #img = sensor.snapshot()
+        #elif stats.l_mean() < 40: # getting darker/going into dark region
+            #sensor.set_auto_exposure(False, exposure_us=sensor.get_exposure_us() + 1000)
+            #img = sensor.snapshot()
 
 
         # 74, 98, 100, 100 was too bright, but the camera thought 25, 50, 50, 61 was too low. I
         # probably need to change the condition for when it changes the exposure.
         # 26, 55, 55, 67 didn't look too dark
 
-        if BINARY_VIEW: img = img.binary(COLOR_THRESHOLDS if COLOR_LINE_FOLLOWING else GRAYSCALE_THRESHOLDS)
-        if BINARY_VIEW: img.erode(1, threshold = 3).dilate(1, threshold = 1)
-        if DO_NOTHING: continue
-
-        # We call get regression below to get a robust linear regression of the field of view.
-        # This returns a line object which we can use to steer the robocar.
-
-        line = img.get_regression(threshold5, \
+        #stats = img.get_statistics()
+        #shiney_floor = stats.l_lq() == 60 and stats.l_uq() == 72 and stats.a_stdev() == 10
+        #print("shiney_floor=", shiney_floor)
+        #line = img.get_regression(COLOR_THRESHOLDS_SHINEY_FLOOR if shiney_floor else threshold5,
+        line = img.get_regression(CHROMIVAR_THRESHOLD if use_chromivar else threshold5, \
             area_threshold = AREA_THRESHOLD, pixels_threshold = PIXELS_THRESHOLD, \
             robust = True, roi=(0, 0, img.width(), round(img.height() / 2)))
 
@@ -420,7 +407,7 @@ try:
             jump_start_counter = jump_start_counter - 1
 
             if usb_is_connected:
-                img.draw_line(line.line(), color = lineColor)
+                img.draw_line(line.line(), color = (0, 255, 0))
                 img.draw_string(img.width() - 30, 10, str(line.magnitude()))
 
             new_time = pyb.millis()
@@ -468,6 +455,8 @@ try:
             #tup = (min(line.x1(), line.x2()), line.y1(), abs(line.x1() - line.x2()), abs(line.y1() - line.y2()))
             #img.draw_rectangle(tup)
 
+
+
             pyb.LED(1).off()
             #pyb.LED(2).on()
             green_led_timer_channel.pulse_width_percent(min(line.magnitude() * 4, 100))
@@ -477,26 +466,59 @@ try:
         else:
             line_lost_count = line_lost_count + 1
 
+            #if (tricks.should_try_next_trick(line_lost_count)):
+                #tricks.set_to_next_trick()
 
-            #print("%s, %i" % (stats, sensor.get_exposure_us()))
-            stats = img.get_statistics()
 
-            if stats.l_mean() > 70:
-                new_exposure_us = sensor.get_exposure_us() - 500
-            else:
-                new_exposure_us = sensor.get_exposure_us() + 500
 
-            sensor.set_auto_exposure(False, exposure_us = new_exposure_us)
+            ##print("%s, %i" % (stats, sensor.get_exposure_us()))
 
-            if (line_lost_count == 1):
-                rgb_gain = sensor.get_rgb_gain_db()
-                sensor.set_auto_whitebal(False, rgb_gain_db = (rgb_gain[0], 0, 6))
-            elif (line_lost_count > 30 and line_lost_count < 100):
-                sensor.set_auto_whitebal(True)
-            # for times when it loses the line, but momentum keeps it going
-            elif (line_lost_count == 100):
-                rgb_gain = sensor.get_rgb_gain_db()
-                sensor.set_auto_whitebal(False, rgb_gain_db = (rgb_gain[0], 0, 6))
+            #print("(line_lost_count % len(COLOR_THRESHOLDS)) - 1=", (line_lost_count * 2 % len(COLOR_THRESHOLDS)))
+            #threshold5 = COLOR_THRESHOLDS[(line_lost_count % len(COLOR_THRESHOLDS))]
+
+            #if (line_lost_count / len(COLOR_THRESHOLDS) > 1):
+                #use_hist = math.ceil(line_lost_count / len(COLOR_THRESHOLDS)) % 2 == 0
+                #print("setting use_hist to", use_hist)
+
+            #if (line_lost_count % (len(COLOR_THRESHOLDS) * 4) == 0):
+                #use_hist = False
+                #rgb_gain = sensor.get_rgb_gain_db()
+                #sensor.set_auto_whitebal(False, rgb_gain_db = (rgb_gain[0], 0, 5))
+
+
+            #if (stats.b_mean() < -10):
+                #sensor.set_auto_whitebal(True)
+                #sensor.skip_frames(2)
+
+            #elif (line_lost_count == 15):
+                #use_hist = True
+            #elif (line_lost_count == 20):
+                #sensor.set_auto_whitebal(True)
+                #sensor.set_auto_exposure(True)
+                #sensor.skip_frames(5)
+            #elif (line_lost_count == 30):
+                #use_hist = False
+                #sensor.set_auto_whitebal(False)
+                #sensor.set_auto_exposure(False)
+
+                #sensor.skip_frames(5)
+                #stats = sensor.snapshot().get_statistics()
+
+            #elif (line_lost_count == 35):
+                #use_hist = True
+            #elif (line_lost_count == 40):
+                #use_hist = False
+                #if (stats.l_mean() < 70):
+                    #new_exposure_us = sensor.get_exposure_us() + 5000
+                    #sensor.set_auto_exposure(False, exposure_us = new_exposure_us)
+                    ##sensor.skip_frames(5)
+                    ##stats = sensor.snapshot().get_statistics()
+
+            #elif (line_lost_count == 45):
+                #use_hist = True
+            #elif (line_lost_count == 50):
+                #line_lost_count = 1
+
 
             #if (sensor.get_exposure_us() > 10000 or (line_lost_count > 10 and line_lost_count < 50)):
                 #print("increasing blue gain")
@@ -505,7 +527,7 @@ try:
             #if (line_lost_count >= 50):
                 #sensor.set_auto_whitebal(True)
 
-            pyb.udelay(200)
+            #pyb.udelay(200)
 
             if REVERSE:
                 throttle_output = throttle_output - 1
@@ -543,7 +565,7 @@ try:
             f.write(str(throttle_output) + "," + str(steering_output) + "\r")
         set_servos(throttle_output, steering_output)
         if DEBUG_LINE_STATUS:
-            print("FPS %f - %s" % (clock.fps(), print_string))
+            print("FPS %f - %s" % (clock.fps(), print_string), ", threshold=", threshold5)
 
         if (WRITE_FILE and pyb.millis() - start_time > 2000):
             f.flush()

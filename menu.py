@@ -1,6 +1,6 @@
 #menu.py
 ###############################################################
-# Writing down thoughts.
+# Menu
 #
 # Author: Adam A. Koch (aakoch)
 # Date: 2018-04-06
@@ -12,6 +12,7 @@ import sensor, image, time, sys, constants
 from class_camera import *
 from class_threshold import *
 from constants import *
+from file_utils import *
 from machine import WDT
 
 
@@ -118,8 +119,7 @@ def main():
             print("unknown")
 
         elif menu_option == 403:
-            print("shoe")
-            print("run")
+            ConfigFile().set_property("boot", "run")
             run_menu_not_selected = False
 
         if run_menu_not_selected:
@@ -146,4 +146,3 @@ main()
 
 camera.set_framesize(sensor.QVGA)
 
-exec(open("pulse_led.py").read())

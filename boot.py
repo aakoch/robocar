@@ -12,8 +12,7 @@ import machine, pyb
 from machine import WDT
 from constants import *
 from reset_functions import *
-from class_camera import *
-from settings import Settings
+from file_utils import *
 
 # Steps when starting
 # 1) Boot
@@ -24,27 +23,22 @@ from settings import Settings
 # this will check, and then if the reset was due to the watchdog, it will run the pulse LED file
 check_reset_cause()
 
-#def setup_settings():
-    #settings = Settings()
-    #return settings
+conf = ConfigFile()
+boot = conf.get_property("boot")
 
-#settings = setup_settings()
+print("boot=%s" % boot)
 
-camera = Camera()
+if (boot == "menu"):
+    print("display menu")
+    conf.delete_property("boot")
+    exec(open("menu.py").read())
+    conf.set_property("boot", "run")
+elif (boot == "run"):
+    print("run car")
+    conf.delete_property("boot")
+    #copy_file("donkey.py", "main.py")
+else:
+    print("no boot. setting to menu")
+    conf.set_property("boot", "menu")
 
-#if (settings.is_watchdog_enabled):
-    #watchdog = WDT(timeout=5000)
-    #camera.set_watchdog(watchdog)
 
-#camera.set_camera_pixel_format_to_rgb()
-#camera.set_camera_thresholds(Threshold.BLUE)
-
-for n in range(50):
-    line = camera.find_line()
-
-    if line and (line.magnitude() >= MAG_THRESHOLD):
-        print(line.magnitude())
-
-# ...
-
-# run
