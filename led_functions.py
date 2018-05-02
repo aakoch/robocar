@@ -1,4 +1,5 @@
 #led_functions.py
+"""
 ###############################################################
 # Functions for the LEDs
 #
@@ -7,6 +8,7 @@
 # Copyright (c) 2018 Adam A. Koch
 # This work is licensed under the MIT license.
 ###############################################################
+"""
 
 import pyb
 from constants import *

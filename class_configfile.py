@@ -1,4 +1,4 @@
-#file_utils.py
+#class_configfile.py
 ###############################################################
 # File utilities
 #

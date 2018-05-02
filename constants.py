@@ -1,12 +1,6 @@
 #constants.py
-###############################################################
-# Constants
-#
-# Author: Adam A. Koch (aakoch)
-# Date: 2018-04-05
-# Copyright (c) 2018 Adam A. Koch
-# This work is licensed under the MIT license.
-###############################################################
+"""Constants"""
+__filename__="constants.py"
 
 import micropython, pyb, math
 from micropython import const
