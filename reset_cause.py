@@ -1,7 +1,6 @@
 # reset_cause.py
 
 import machine, pyb
-from machine import WDT
 
 print("reset cause=%s" % machine.reset_cause())
 
@@ -11,7 +10,7 @@ if (machine.reset_cause() == machine.WDT_RESET):
     exec(open("pulse_led.py").read())
 else:
     pass
-    #wdt = WDT(timeout=5000)  # enable it with a timeout of 5s
+    wdt = machine.WDT(timeout=5000)  # enable it with a timeout of 5s
 
 if (machine.reset_cause() == machine.PWRON_RESET):
     print("reset was caused by PWRON_RESET")
@@ -25,6 +24,6 @@ elif (machine.reset_cause() == machine.SOFT_RESET):
 
 while True:
 
-    #wdt.feed()
+    wdt.feed()
     print("going to wait 1 second/s...")
     pyb.delay(1000)

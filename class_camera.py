@@ -12,24 +12,15 @@ import sensor, pyb
 from micropython import const
 from class_threshold import Threshold
 from constants import *
+from log import *
 
-_AREA_THRESHOLD = const(20)
-_PIXELS_THRESHOLD = const(20)
+_AREA_THRESHOLD = const(35)
+_PIXELS_THRESHOLD = const(35)
 FRAME_REGION = 0.8 # Percentage of the image from the bottom (0 - 1.0).
 FRAME_WIDE = 1.0 # Percentage of the frame width.
 BOTTOM_PX_TO_REMOVE = const(4) # maybe I screwed something up with my camera, but the last few rows are just noise
 MILLIS_BETWEEN_GLARE_CHECK = const(2000)
 
-def trace(*msg):
-    pass
-    #print(*msg)
-    #pyb.delay(10)
-
-def debug(*msg):
-    pass
-
-def info(*msg):
-    print(*msg)
 
 class Camera():
 
@@ -94,7 +85,7 @@ class Camera():
         self.threshold = threshold
 
     def _check_glare(self):
-        blobs = self.snapshot.find_blobs([(99, 100, -7, 127, -5, 127)], roi=self.blobs_roi)
+        blobs = self.snapshot.find_blobs([(95, 100, -128, 127, -4, 5)], roi=self.blobs_roi)
 
         if (blobs):
             trace("blobs found")
@@ -110,6 +101,7 @@ class Camera():
             if (self.CHROMINVAR):
                 self.old_threshold = self.threshold
                 self.threshold = [(29, 38, 0, 34, -66, -33)]
+                # glare threshold: (30, 59, -5, 16, -60, -34)
                 info("glare pixel_count=", pixel_count)
             else:
                 self.threshold = self.old_threshold
@@ -186,18 +178,18 @@ class Camera():
                     tag = tag.id()
         return tag
 
-camera = Camera()
-#camera.set_threshold([(29, 38, 0, 34, -66, -33)])
-#print("taking picture")
-#camera.take()
-for j in range(200):
-    #print("j=",j)
-    camera.take()
-    camera.find_line()
-    #camera.detect_glare()
-#camera.get_img()
-#for i in range(0, 100):
-    #camera.increase_exposure()
-    #sensor.skip_frames(10, 1000)
-#print("exit")
-#print("found %i" % camera.find_menu_item())
+#camera = Camera()
+##camera.set_threshold([(29, 38, 0, 34, -66, -33)])
+##print("taking picture")
+##camera.take()
+#for j in range(200):
+    ##print("j=",j)
+    #camera.take()
+    #camera.find_line()
+    ##camera.detect_glare()
+##camera.get_img()
+##for i in range(0, 100):
+    ##camera.increase_exposure()
+    ##sensor.skip_frames(10, 1000)
+##print("exit")
+##print("found %i" % camera.find_menu_item())

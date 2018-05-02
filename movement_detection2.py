@@ -1,6 +1,7 @@
+# movement_detection2.py
 ###############################################################
 # Find the lowest throttle value the car will move.
-# !!! This should be replaced wth find_displacement() !!!
+# This is the second revision that uses find_displacement().
 #
 # Author: Adam A. Koch (aakoch)
 # Date: 2018-04-22
@@ -8,7 +9,7 @@
 # This work is licensed under the MIT license.
 ###############################################################
 
-import sensor, image, pyb, os, time, array
+import sensor, image, pyb, os
 from util_functions import *
 from file_utils import ConfigFile
 from pyb import RTC
@@ -20,76 +21,49 @@ STEERING_SERVO_ZERO_US = round((STEERING_SERVO_MIN_US + STEERING_SERVO_MAX_US) /
 
 def create_time_based_filename():
     datetime = rtc.datetime()
-    print(datetime)
     return "{0}{1:02d}{2:02d}{3:02d}{4:02d}{5:02d}".format(datetime[0], datetime[1], datetime[2], \
             datetime[4], datetime[5], datetime[6])
 
-
 def set_servos(throttle):
-    ## TODO: calculate this upfront
-    #steering = remap(90, 0, 180, STEERING_SERVO_MIN_US, STEERING_SERVO_MAX_US)
-
     device.write("{%05d,%05d}\r\n" % (throttle, STEERING_SERVO_ZERO_US))
-
 
 rtc = RTC()
 sensor.reset()
-sensor.set_pixformat(sensor.RGB565)
+sensor.set_pixformat(sensor.GRAYSCALE)
 sensor.set_framesize(sensor.B128X128)
 sensor.set_hmirror(True)
 sensor.set_vflip(True)
-sensor.skip_frames(time = 1500)
+sensor.skip_frames(time = 2000)
 sensor.set_auto_whitebal(False)
 sensor.set_auto_gain(False)
-clock = time.clock()
-
-print("STEERING_SERVO_ZERO_US", STEERING_SERVO_ZERO_US)
-
-#sensor.set_auto_exposure(False, exposure_us=sensor.get_exposure_us() + 10000)
 
 device = pyb.UART(3, 19200, timeout_char = 100)
-
-
-print("sensor.height()=", sensor.height())
-
-
-extra_fb = sensor.alloc_extra_fb(sensor.width(), sensor.height(), sensor.RGB565)
-
+extra_fb = sensor.alloc_extra_fb(sensor.width(), sensor.height(), sensor.GRAYSCALE)
 
 prev_throttle = int(ConfigFile().get_property("min_speed"))
-print("previous min throttle=", str(prev_throttle))
-
+print("Previous min throttle=", str(prev_throttle))
 print("About to save background image...")
 sensor.skip_frames(time = 200)
 extra_fb.replace(sensor.snapshot())
 
-print("determining noise")
+print("Determining noise...")
 
-x_min = 100
-x_max = -100
-
-y_min = 100
-y_max = -100
-
-from pyb import RTC
+(x_min, x_max) = (100, -100)
+(y_min, y_max) = (100, -100)
 
 rtc = RTC()
 
-while(True):
-    start = pyb.millis()
-    while(pyb.elapsed_millis(start) < 5000):
-        img = sensor.snapshot()
-        displacement = img.find_displacement(extra_fb)
-        #extra_fb.replace(img)
-        x_min = min(x_min, displacement.x_translation())
-        x_max = max(x_max, displacement.x_translation())
-        y_min = min(y_min, displacement.y_translation())
-        y_max = max(y_max, displacement.y_translation())
+start = pyb.millis()
+while(pyb.elapsed_millis(start) < 5000):
+    img = sensor.snapshot()
+    displacement = img.find_displacement(extra_fb)
+    (x_min, x_max) = (min(x_min, displacement.x_translation()), max(x_max, displacement.x_translation()))
+    (y_min, y_max) = (min(y_min, displacement.y_translation()), max(y_max, displacement.y_translation()))
 
-    print(rtc.datetime(), x_min, x_max, y_min, y_max)
-    # -0.05934011 0.1411061 -0.09199938 0.1660026
-
+print(rtc.datetime(), x_min, x_max, y_min, y_max)
+print("==============================================")
 print("============= Press throttle now =============")
+print("==============================================")
 
 for led_count in range(0, 20):
     set_servos(prev_throttle - 80)
@@ -98,55 +72,77 @@ for led_count in range(0, 20):
 
 pyb.LED(1).off()
 
-movement_found = False
-throttle = prev_throttle - 20
-start = pyb.millis()
+(run_throttle_millis, stop_throttle_millis) = (690, 145)
+throttle = prev_throttle - 10
+number_of_rounds = 3
+throttle_total = 0
+for count in range(1, number_of_rounds + 1):
+    print("starting round", count, "of", str(number_of_rounds), "at throttle", throttle)
+    movement_found = False
+    start = pyb.millis()
 
-while (not movement_found):
-    clock.tick()
-    print("throttle=", throttle)
-    img = sensor.snapshot()
+    while (not movement_found):
+        img = sensor.snapshot()
 
-    displacement = img.find_displacement(extra_fb)
+        displacement = img.find_displacement(extra_fb)
 
-    #extra_fb.replace(img)
+        # Offset results are noisy without filtering so we drop some accuracy.
+        sub_pixel_x = displacement.x_translation()
+        sub_pixel_y = displacement.y_translation()
 
-    # Offset results are noisy without filtering so we drop some accuracy.
-    sub_pixel_x = displacement.x_translation()
-    sub_pixel_y = displacement.y_translation()
-
-    #print("displacement.response()=", displacement.response())
-    if (displacement.response() > 0.1): # Below 0.1 or so (YMMV) and the results are just noise.
-        print("{0:+f}x {1:+f}y {2}".format(sub_pixel_x, sub_pixel_y,
-              displacement.response()))
-        pad = 0.05598078
-        if (sub_pixel_x < x_min - pad or sub_pixel_x > x_max + pad \
-                or sub_pixel_y < y_min - pad or sub_pixel_y > y_max + pad):
-            movement_found = True
-        else:
-            if (pyb.elapsed_millis(start) < 800):
-                set_servos(throttle)
-            elif (pyb.elapsed_millis(start) < 1000):
-                set_servos(prev_throttle - 80)
+        if (displacement.response() > (count / 10)): # Below 0.1 or so (YMMV) and the results are just noise.
+            #print("{0:+f}x {1:+f}y {2}".format(sub_pixel_x, sub_pixel_y, displacement.response()))
+            pad = 0.2
+            if (sub_pixel_x < x_min - pad or sub_pixel_x > x_max + pad \
+                    or sub_pixel_y < y_min - pad or sub_pixel_y > y_max + pad):
+                movement_found = True
             else:
-                throttle += 2
+                if (pyb.elapsed_millis(start) < run_throttle_millis):
+                    set_servos(throttle)
+                elif (pyb.elapsed_millis(start) < run_throttle_millis + stop_throttle_millis):
+                    set_servos(prev_throttle - 80)
+                else:
+                    throttle += 2
 
-                start = pyb.millis()
-                set_servos(prev_throttle - 80)
-    else:
-        set_servos(prev_throttle - 80)
+                    start = pyb.millis()
+                    set_servos(prev_throttle - 80)
+        else:
+            set_servos(prev_throttle - 80)
+        print("throttle=", throttle)
 
+    print("throttle=", throttle, "x_min=", x_min, x_max, y_min, y_max, "{0:+f}x {1:+f}y response={2}".format(sub_pixel_x, sub_pixel_y, displacement.response()))
+    set_servos(throttle - 80)
 
-print(x_min, x_max, y_min, y_max)
-set_servos(throttle - 80)
+    (x_min, x_max) = (min(x_min, displacement.x_translation()), max(x_max, displacement.x_translation()))
+    (y_min, y_max) = (min(y_min, displacement.y_translation()), max(y_max, displacement.y_translation()))
 
-ConfigFile().set_property("min_speed", throttle)
+    img.save("movement_difference" + create_time_based_filename());
+    extra_fb.replace(img)
+    throttle_total += throttle
+    throttle = prev_throttle - 6
 
-img.save("movement_difference" + create_time_based_filename());
+print("==============================================")
+
+throttle_avg = round(throttle_total / number_of_rounds)
+print("average throttle=", throttle_avg)
+ConfigFile().set_property("min_speed", throttle_avg)
+
 
 for led_count in range(0, 10):
+    print("=========== Disengage throttle now ===========")
     set_servos(throttle - 80)
     pyb.LED(2).toggle()
-    pyb.delay(100)
+    pyb.delay(500)
 pyb.LED(2).off()
+
+
+# get the first line of the main.py script
+read_
+
+# is it "movement_detection2.py"?
+
+# copy main.py to movement_detection2.py
+
+# copy boot.py to main.py
+
 
