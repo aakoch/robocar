@@ -1,0 +1,16 @@
+== Info:   Trying 52.216.160.194...
+== Info: TCP_NODELAY set
+== Info: Connected to www.diveintopython.net (52.216.160.194) port 80 (#0)
+=> Send header, 132 bytes (0x84)
+0000: 47 45 54 20 2f 70 6f 77 65 72 5f 6f 66 5f 69 6e GET /power_of_in
+0010: 74 72 6f 73 70 65 63 74 69 6f 6e 2f 6f 70 74 69 trospection/opti
+0020: 6f 6e 61 6c 5f 61 72 67 75 6d 65 6e 74 73 2e 68 onal_arguments.h
+0030: 74 6d 6c 20 48 54 54 50 2f 31 2e 31 0d 0a 48 6f tml HTTP/1.1..Ho
+0040: 73 74 3a 20 77 77 77 2e 64 69 76 65 69 6e 74 6f st: www.diveinto
+0050: 70 79 74 68 6f 6e 2e 6e 65 74 0d 0a 55 73 65 72 python.net..User
+0060: 2d 41 67 65 6e 74 3a 20 63 75 72 6c 2f 37 2e 35 -Agent: curl/7.5
+0070: 34 2e 30 0d 0a 41 63 63 65 70 74 3a 20 2a 2f 2a 4.0..Accept: */*
+0080: 0d 0a 0d 0a                                     ....
+== Info: Recv failure: Operation timed out
+== Info: stopped the pause stream!
+== Info: Closing connection 0

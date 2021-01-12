@@ -18,7 +18,7 @@
 #define SERIAL_THROTTLE_SERVO_REFRESH_RATE 1000000UL // in us
 #define RC_THROTTLE_DEAD_ZONE_MIN 1400UL // in us
 #define RC_THROTTLE_DEAD_ZONE_MAX 1600UL // in us
-
+~
 #define RC_STEERING_SERVO_REFRESH_RATE 20000UL // in us
 #define SERIAL_STEERING_SERVO_REFRESH_RATE 1000000UL // in us
 #define RC_STEERING_DEAD_ZONE_MIN 1400UL // in us
@@ -133,7 +133,7 @@ void loop()
 
       if (input_count == 2) {
 
-        //newData = true;
+        newData = true;
 
         if (!serial_throttle_servo_pulse_length)
         {
@@ -221,6 +221,7 @@ void loop()
       steering = rc_steering_servo_pulse_length;
       throttle = rc_throttle_servo_pulse_length;
       throttle_servo.writeMicroseconds(rc_throttle_servo_pulse_length);
+      Serial.println(rc_throttle_servo_pulse_length);
       steering_servo.writeMicroseconds(rc_steering_servo_pulse_length);
     }
   }
@@ -230,7 +231,7 @@ void loop()
     steering_servo.detach();
   }
   
-  //showNewData();
+  showNewData();
 }
 
 void showNewData() {

@@ -1,4 +1,4 @@
-#class_led_controller.py
+__filename__ = "class_led_controller.py"
 ################################################################################
 # Class to encapsulate the pulsating LED code I originally had in pulse_led.py.
 #
@@ -59,5 +59,11 @@ class LedController():
             self.set_pw_colors(pyb.millis() / 1000, self.red_channel, self.green_channel, self.blue_channel)
             pyb.udelay(self.led_timer.period())
 
+        self.led_timer.deinit()
+        self.red_led_off(None)
+        self.green_led_off(None)
+        self.blue_led_off(None)
+
 pyb.delay(200)
-LedController().pulse(12000)
+LedController().pulse(4000)
+pyb.delay(200)

@@ -13,13 +13,13 @@
 
 #define SERIAL_BUAD_RATE 19200
 
-#define RC_THROTTLE_SERVO_REFRESH_RATE 20000UL // in us
-#define SERIAL_THROTTLE_SERVO_REFRESH_RATE 1000000UL // in us
+#define RC_THROTTLE_SERVO_REFRESH_RATE 20000UL // in us - 20 ms
+#define SERIAL_THROTTLE_SERVO_REFRESH_RATE 1000000UL // in us - 1 sec
 #define RC_THROTTLE_DEAD_ZONE_MIN 1400UL // in us
 #define RC_THROTTLE_DEAD_ZONE_MAX 1630UL // in us
 
-#define RC_STEERING_SERVO_REFRESH_RATE 20000UL // in us
-#define SERIAL_STEERING_SERVO_REFRESH_RATE 1000000UL // in us
+#define RC_STEERING_SERVO_REFRESH_RATE 20000UL // in us - 20 ms
+#define SERIAL_STEERING_SERVO_REFRESH_RATE 1000000UL // in us - 1 sec
 #define RC_STEERING_DEAD_ZONE_MIN 1400UL // in us
 #define RC_STEERING_DEAD_ZONE_MAX 1600UL // in us
 
@@ -53,27 +53,37 @@ void loop()
     bool rc_throttle_pin_state = digitalRead(RC_THROTTLE_SERVO_PIN) == HIGH;
     bool rc_steering_pin_state = digitalRead(RC_STEERING_SERVO_PIN) == HIGH;
 
+    // if the current state is high and the previous state was low, then it is the rising edge
     if(rc_throttle_pin_state && (!last_rc_throttle_pin_state)) // rising edge
     {
         last_rc_throttle_microseconds = microseconds;
     }
 
+    // if the current state is low and the previous state was high, then it is the falling edge
+    // can we add an "else" here vv ?
     if((!rc_throttle_pin_state) && last_rc_throttle_pin_state) // falling edge
     {
+        // this time from the rising edge to the falling edge, which is the pulse length (right?)
         unsigned long temp = microseconds - last_rc_throttle_microseconds;
 
+        // if we don't have a pulse length?
         if(!rc_throttle_servo_pulse_length)
         {
+           // if we didn't have a pulse length before, just use the currently calculated one
            rc_throttle_servo_pulse_length = temp;
         }
         else
         {
+           // if we had a pluse length already set, then weight the previously calculated pluse length plus the currently calculated one
            rc_throttle_servo_pulse_length = ((rc_throttle_servo_pulse_length * 3) + temp) >> 2;
         }
 
+        // set the last time the throttle servo pulse was refreshed to now?
         rc_throttle_servo_pulse_refreshed = microseconds;
     }
 
+    // if we have set the servo length...? And the microseconds? minus the last time it was refreshed is greater than
+    // twice the refresh rate? I guess that means the servo hasn't been refreshed? So we just set it to zero?
     if(rc_throttle_servo_pulse_length // zero servo if not refreshed
     && ((microseconds - rc_throttle_servo_pulse_refreshed) > (2UL * RC_THROTTLE_SERVO_REFRESH_RATE)))
     {
@@ -107,28 +117,39 @@ void loop()
         rc_steering_servo_pulse_length = 0;
     }
 
+    // we've set the steering and throttle pulse lengths
+
     last_microseconds = microseconds;
     last_rc_throttle_pin_state = rc_throttle_pin_state;
     last_rc_steering_pin_state = rc_steering_pin_state;
 
     while(Serial.available())
     {
+        // read what we can from the UART? bus
         int c = Serial.read();
+  Serial.println(c);
+        // move everything up the buffer
         memmove(serial_buffer, serial_buffer + 1, sizeof(serial_buffer) - 2);
+        // append the last character read to the end of the buffer
         serial_buffer[sizeof(serial_buffer) - 2] = c;
 
+        // if the last character is a newline...
+        // (why is it just one character?)
         if(c == '\n')
         {
             unsigned long serial_throttle_servo_pulse_length_tmp, serial_steering_servo_pulse_length_tmp;
 
+            // if the number of items matched is 2, then we copy the values to the throttle and steering vars
             if(sscanf(serial_buffer, "{%lu,%lu}", &serial_throttle_servo_pulse_length_tmp, &serial_steering_servo_pulse_length_tmp) == 2)
             {
                 if(!serial_throttle_servo_pulse_length)
                 {
+                   // if it hasn't been set before, just use the current value
                    serial_throttle_servo_pulse_length = serial_throttle_servo_pulse_length_tmp;
                 }
                 else
                 {
+                   // if it has been set before, then we take a weighted average
                    serial_throttle_servo_pulse_length = ((serial_throttle_servo_pulse_length * 3) + serial_throttle_servo_pulse_length_tmp) >> 2;
                 }
 
@@ -167,16 +188,20 @@ void loop()
         serial_steering_servo_pulse_length = 0;
     }
 
+    // check if the steering is turned on (on the remote)
     if(rc_steering_servo_pulse_length)
     {
+        // if the steering servo is not attached, attach it
         if(!steering_servo.attached())
         {
             throttle_servo.attach(THROTTLE_SERVO_PIN);
             steering_servo.attach(STEERING_SERVO_PIN);
         }
 
+        // if the camera over the UART is telling us to steer...
         if(serial_steering_servo_pulse_length)
         {
+            // if the RC throttle is on, and we check that to see that it is outside a zone, then we should write to our throttle servo
             if((rc_throttle_servo_pulse_length < RC_THROTTLE_DEAD_ZONE_MIN)
             || (rc_throttle_servo_pulse_length > RC_THROTTLE_DEAD_ZONE_MAX))
             {
@@ -197,12 +222,17 @@ void loop()
                 steering_servo.writeMicroseconds(serial_steering_servo_pulse_length);
             }
         }
+        // otherwise listen to the remote control? (shouldn't it be the other way around? 
+        // or does serial_steering_servo_pulse_length get set to zero if we are controlling the steering with the remote?)
+        // I think this is the block of code that gets called when I don't have a program running (you know, when the car gets away from me?)
+        // Which has caused more problems than times I've wanted to drive the car normally (never).
         else
         {
             throttle_servo.writeMicroseconds(rc_throttle_servo_pulse_length);
             steering_servo.writeMicroseconds(rc_steering_servo_pulse_length);
         }
     }
+    // if the remote is turned off and we are still attached, detach the servos
     else if(steering_servo.attached())
     {
         throttle_servo.detach();

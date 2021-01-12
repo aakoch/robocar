@@ -12,28 +12,23 @@
 # Copyright (c) 2018 Adam A. Koch
 # This work is licensed under the MIT license.
 ###############################################################
-import time, pyb, uio, uos, machine
+import time
 from pyb import RTC
 
 rtc = RTC()
 
 def create_time_based_filename():
     datetime = rtc.datetime()
-    print(datetime)
+    #print(datetime)
     return "{0}{1:02d}{2:02d}{3:02d}{4:02d}{5:02d}".format(datetime[0], datetime[1], datetime[2], \
             datetime[4], datetime[5], datetime[6])
 
-# https://stackoverflow.com/a/17120430/137581
-def weekday(year, month, day):
+def set_time(year, month, day, hour, minute):
+    """Set the internal clock of the OpenMV camera"""
+
+    # https://stackoverflow.com/a/17120430/137581
     #weekday is 1-7 for Monday through Sunday.
     offset = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
-    week   = ['Sunday',
-              'Monday',
-              'Tuesday',
-              'Wednesday',
-              'Thursday',
-              'Friday',
-              'Saturday']
     afterFeb = 1
     if month > 2: afterFeb = 0
     aux = year - 1700 - afterFeb
@@ -46,14 +41,10 @@ def weekday(year, month, day):
     # sum monthly and day offsets
     dayOfWeek += offset[month - 1] + (day - 1)
     dayOfWeek %= 7
-    return round(dayOfWeek), week[round(dayOfWeek)]
 
-def set_time(year, month, day, hour, minute):
-    rtc.datetime((year, month, day, weekday(year, month, day)[0], hour, minute, 0, 0))
+    rtc.datetime((year, month, day, round(dayOfWeek), hour, minute, 0, 0))
 
-set_time(2018, 4, 24, 7, 37)
-print(create_time_based_filename())
-print(weekday(2018, 4, 18)[1])
-
-    # Enter Deepsleep Mode.
-    #machine.deepsleep()
+#set_time(2018, 5, 5, 22, 25)
+#print(create_time_based_filename())
+#print(weekday(2018, 4, 18)[1])
+#print(rtc.datetime())

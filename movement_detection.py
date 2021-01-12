@@ -54,7 +54,7 @@ print("sensor.height()=", sensor.height())
 extra_fb = sensor.alloc_extra_fb(sensor.width(), sensor.height(), sensor.RGB565)
 
 
-prev_throttle = int(ConfigFile().get_property("min_speed"))
+prev_throttle = 0 #int(ConfigFile().get_property("min_speed"))
 print("previous min throttle=", str(prev_throttle))
 
 print("About to save background image...")

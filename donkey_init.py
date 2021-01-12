@@ -223,43 +223,43 @@ while i > -100:
         #else:
             #pyb.LED(3).off()
 
-        ## Figure out steering and do steering PID
-        #steering_new_result = figure_out_my_steering(line, img)
-        ## error = setpoint - measured_value
-        #steering_delta_result = (steering_new_result - steering_old_result) if (steering_old_result != None) else 0
-        #steering_old_result = steering_new_result
+        # Figure out steering and do steering PID
+        steering_new_result = figure_out_my_steering(line, img)
+        # error = setpoint - measured_value
+        steering_delta_result = (steering_new_result - steering_old_result) if (steering_old_result != None) else 0
+        steering_old_result = steering_new_result
 
-        #steering_p_output = steering_new_result # Standard PID Stuff here... nothing particularly interesting :)
-        ## integral = integral + error * dt
-        #steering_i_output = max(min(steering_i_output + steering_new_result, STEERING_I_MAX), STEERING_I_MIN)
-        ## STEERING_I_MAX = 0
-        ## STEERING_I_MIN = -0
-        ## derivative = (error - previous_error) / dt
-        #steering_d_output = ((steering_delta_result * 1000) / delta_time) if delta_time else 0
-        #steering_pid_output = (STEERING_P_GAIN * steering_p_output) + \
-                              #(STEERING_I_GAIN * steering_i_output) + \
-                              #(STEERING_D_GAIN * steering_d_output)
-        ## STEERING_P_GAIN = -23.0 # Make this smaller as you increase your speed and vice versa.
-        ## STEERING_I_GAIN = 0.0
-        ## STEERING_D_GAIN = -9 # Make this larger as you increase your speed and vice versa.
+        steering_p_output = steering_new_result # Standard PID Stuff here... nothing particularly interesting :)
+        # integral = integral + error * dt
+        steering_i_output = max(min(steering_i_output + steering_new_result, STEERING_I_MAX), STEERING_I_MIN)
+        # STEERING_I_MAX = 0
+        # STEERING_I_MIN = -0
+        # derivative = (error - previous_error) / dt
+        steering_d_output = ((steering_delta_result * 1000) / delta_time) if delta_time else 0
+        steering_pid_output = (STEERING_P_GAIN * steering_p_output) + \
+                              (STEERING_I_GAIN * steering_i_output) + \
+                              (STEERING_D_GAIN * steering_d_output)
+        # STEERING_P_GAIN = -23.0 # Make this smaller as you increase your speed and vice versa.
+        # STEERING_I_GAIN = 0.0
+        # STEERING_D_GAIN = -9 # Make this larger as you increase your speed and vice versa.
 
-        ## Steering goes from [-90,90] but we need to output [0,180] for the servos.
-        #steering_output = STEERING_OFFSET + max(min(round(steering_pid_output), 180 - STEERING_OFFSET), STEERING_OFFSET - 180)
+        # Steering goes from [-90,90] but we need to output [0,180] for the servos.
+        steering_output = STEERING_OFFSET + max(min(round(steering_pid_output), 180 - STEERING_OFFSET), STEERING_OFFSET - 180)
 
-        ## Figure out throttle and do throttle PID
-        #throttle_new_result = figure_out_my_throttle(steering_output)
-        #throttle_delta_result = (throttle_new_result - throttle_old_result) if (throttle_old_result != None) else 0
-        #throttle_old_result = throttle_new_result
+        # Figure out throttle and do throttle PID
+        throttle_new_result = figure_out_my_throttle(steering_output)
+        throttle_delta_result = (throttle_new_result - throttle_old_result) if (throttle_old_result != None) else 0
+        throttle_old_result = throttle_new_result
 
-        #throttle_p_output = throttle_new_result # Standard PID Stuff here... nothing particularly interesting :)
-        ## limit to THROTTLE_I_MIN < throttle < THROTTLE_I_MAX
-        #throttle_i_output = max(min(throttle_i_output + throttle_new_result, THROTTLE_I_MAX), THROTTLE_I_MIN) # always 0 if we don't change THROTTLE_I_MAX or THROTTLE_I_MIN
-        ## THROTTLE_I_MAX = 0
-        ## THROTTLE_I_MIN = -0
-        #throttle_d_output = ((throttle_delta_result * 1000) / delta_time) if delta_time else 0
-        #throttle_pid_output = (THROTTLE_P_GAIN * throttle_p_output) + \
-                              #(THROTTLE_I_GAIN * throttle_i_output) + \
-                              #(THROTTLE_D_GAIN * throttle_d_output)
+        throttle_p_output = throttle_new_result # Standard PID Stuff here... nothing particularly interesting :)
+        # limit to THROTTLE_I_MIN < throttle < THROTTLE_I_MAX
+        throttle_i_output = max(min(throttle_i_output + throttle_new_result, THROTTLE_I_MAX), THROTTLE_I_MIN) # always 0 if we don't change THROTTLE_I_MAX or THROTTLE_I_MIN
+        # THROTTLE_I_MAX = 0
+        # THROTTLE_I_MIN = -0
+        throttle_d_output = ((throttle_delta_result * 1000) / delta_time) if delta_time else 0
+        throttle_pid_output = (THROTTLE_P_GAIN * throttle_p_output) + \
+                              (THROTTLE_I_GAIN * throttle_i_output) + \
+                              (THROTTLE_D_GAIN * throttle_d_output)
         ## THROTTLE_P_GAIN = 1.0
         ## THROTTLE_I_GAIN = 0.0
         ## THROTTLE_D_GAIN = 0.0
